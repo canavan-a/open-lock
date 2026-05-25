@@ -41,6 +41,7 @@ struct ServoManager{
 		xSemaphoreTake(mutex, portMAX_DELAY);
 		State pState = getPState_();
 		unsafe_moveServo(Angles[static_cast<int>(pState)]);
+		state = pState;
 		xSemaphoreGive(mutex);
 	}
 
