@@ -1,14 +1,16 @@
 #include <Arduino.h>
-// #include <ESP32Servo.h>
+#include "scheduler.h"
 
-// Servo myServo;
+
+Scheduler *s;
 
 void setup(){
 	Serial.begin(115200);
-	// myServo.attach(16);	
+	s = new Scheduler();
+	s->start();	
 }
 
 void loop(){
-	Serial.println("running");		
-	// vTaskDelay(portMAX_DELAY);
+	Serial.println("entering loop, (delay forever)");		
+	vTaskDelay(portMAX_DELAY);
 }

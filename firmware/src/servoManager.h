@@ -3,6 +3,7 @@
 #include <ESP32Servo.h>
 #include <array>
 #include <atomic>
+#include <Preferences.h>
 
 #include "queue.h"
 #include "constants.h"
@@ -26,12 +27,30 @@ struct ServoManager{
 	
 	std::atomic<State> state{OPEN};
 
+	Preferences prefs;
+
 	ServoManager(){
-		// init with server in open state
+
+		
+		// init with server in previous persistent state
 		mutex = xSemaphoreCreateMutex();
-		xSemaphoreTake(mutex, portMAX_DELAY);		
-		unsafe_moveServo(Angles[static_cast<int>(State::OPEN)]);
+		xSemaphoreTake(mutex, portMAX_DELAY);
+		State pState = getPState_();
+		unsafe_moveServo(Angles[static_cast<int>(pState)]);
 		xSemaphoreGive(mutex);
+	}
+
+	State getPState_(){			
+		prefs.begin("lock-state", true);
+		State s = (State)prefs.getInt("state", 0);
+		prefs.end();
+		return s;
+	}
+
+	void setPState_(State s){
+		prefs.begin("lock-state", false);
+		prefs.putInt("state", s);
+		prefs.end();
 	}
 
 	void moveServo(State newState){
@@ -39,6 +58,7 @@ struct ServoManager{
 		if (newState != state){
 			unsafe_moveServo(Angles[static_cast<int>(newState)]);
 			state.store(newState);
+			setPState_(newState);
 		}
 
 		xSemaphoreGive(mutex);

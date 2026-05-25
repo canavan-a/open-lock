@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
 
@@ -10,7 +11,7 @@
 struct SignalManager {
 	ServoManager* servoManager;
 	WiFiClient wifiClient;
-	PubSubclient mqtt{wifiClient};
+	PubSubClient mqtt{wifiClient};
 
 	// pass queue from servoManager 
 	SignalManager(ServoManager* sm): servoManager(sm) {
@@ -21,7 +22,7 @@ struct SignalManager {
 		Serial.println("wifi connected");
 		WiFi.setSleep(true);
 
-		mqtt.setServer(config::MqttBroker, config::MqttPort);
+		mqtt.setServer(config::MqttBroker.c_str(), config::MqttPort);
 		
 		mqtt.setCallback([this](char* topic, byte* payload, unsigned int length){
 			String msg((char*)payload, length);
@@ -31,17 +32,17 @@ struct SignalManager {
 				servoManager->queue.send(State::CLOSED);
 			} else if (msg == "state"){
 				String state = servoManager->getState() == State::OPEN ? "open" : "closed";
-				mqtt.publish(config::MqttTopicState, state.c_str());
+				mqtt.publish(config::MqttTopicState.c_str(), state.c_str());
 			}
 		});
 		
 		if (config::MqttAnon){
-			mqtt.connect(config::MqttTopic);	
+			mqtt.connect(config::MqttClientId.c_str());	
 		} else {
-			mqtt.connect(config::MqttClientId, config::MqttUsername, config::MqttPassword);
+			mqtt.connect(config::MqttClientId.c_str(), config::MqttUsername.c_str(), config::MqttPassword.c_str());
 		}
 
-		mqtt.subscribe(config::MqttTopicSignal);
+		mqtt.subscribe(config::MqttTopicSignal.c_str());
 		
 
 	}
