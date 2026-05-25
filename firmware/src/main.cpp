@@ -9,6 +9,6 @@ void setup(){
 }
 
 void loop(){
-	Serial.println("Camera");		
-	vTaskDelay(portMAX_DELAY)
+	Serial.println("running");		
+	// vTaskDelay(portMAX_DELAY);
 }
