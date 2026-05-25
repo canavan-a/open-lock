@@ -5,7 +5,7 @@
 #include <atomic>
 
 #include "queue.h"
-#include "config.h"
+#include "constants.h"
 
 enum State {
 	OPEN = 0,
