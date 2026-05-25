@@ -29,6 +29,10 @@ struct ServoManager{
 
 	Preferences prefs;
 
+	std::function<void(State)> stateChangeTrigger = [](State){
+		Serial.println("lambda init");
+	};
+
 	ServoManager(){
 
 		
@@ -62,6 +66,7 @@ struct ServoManager{
 		}
 
 		xSemaphoreGive(mutex);
+		stateChangeTrigger(newState);
 	}
 
 	void unsafe_moveServo(int angle) noexcept {

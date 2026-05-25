@@ -6,17 +6,20 @@
 
 struct Scheduler
 {
-	SignalManager sig;
-	ServoManager serv;
+	SignalManager *sig;
+	ServoManager *serv;
 	
-	Scheduler(): serv{}, sig{&serv} {}
+	Scheduler() {
+		serv = new ServoManager();
+		sig = new SignalManager(serv);
+	}
 
 	static void servoTask(void* param){
-		static_cast<Scheduler*>(param)->serv.run(param);
+		static_cast<Scheduler*>(param)->serv->run(param);
 	}
 
 	static void signalTask(void* param){
-		static_cast<Scheduler*>(param)->sig.run(param);
+		static_cast<Scheduler*>(param)->sig->run(param);
 	}
 
 	void start(){

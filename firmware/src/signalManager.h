@@ -12,9 +12,13 @@ struct SignalManager {
 	ServoManager* servoManager;
 	WiFiClient wifiClient;
 	PubSubClient mqtt{wifiClient};
+	SemaphoreHandle_t sendMutex;
+
+	
 
 	// pass queue from servoManager 
 	SignalManager(ServoManager* sm): servoManager(sm) {
+		sendMutex = xSemaphoreCreateMutex();
 		Serial.println("connecting wifi");
 		WiFi.begin(config::NetworkSSID, config::NetworkPassword);
 		while (WiFi.status() != WL_CONNECTED) delay(500);
@@ -31,8 +35,7 @@ struct SignalManager {
 			} else if (msg == "closed"){
 				servoManager->queue.send(State::CLOSED);
 			} else if (msg == "state"){
-				String state = servoManager->getState() == State::OPEN ? "open" : "closed";
-				mqtt.publish(config::MqttTopicState.c_str(), state.c_str());
+				safeSend(servoManager->getState());
 			}
 		});
 		
@@ -43,10 +46,22 @@ struct SignalManager {
 		}
 
 		mqtt.subscribe(config::MqttTopicSignal.c_str());
+
+		// pass lambda to servoManager
+
+		servoManager->stateChangeTrigger = [this](State s){
+					this->safeSend(s);
+				};
 		
 
 	}
 
+	void safeSend(State state){
+		xSemaphoreTake(sendMutex, portMAX_DELAY);
+		String stateStr = state == State::OPEN ? "open" : "closed";
+		mqtt.publish(config::MqttTopicState.c_str(), stateStr.c_str());
+		xSemaphoreGive(sendMutex);
+	}
 	
 
 	void run(void* param){
