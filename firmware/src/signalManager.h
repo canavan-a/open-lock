@@ -64,10 +64,32 @@ struct SignalManager {
 	}
 	
 
+	void reconnectWifi(){
+		if (WiFi.status() == WL_CONNECTED) return;
+		WiFi.disconnect();
+		WiFi.begin(config::NetworkSSID, config::NetworkPassword);
+		while (WiFi.status() != WL_CONNECTED) vTaskDelay(500 / portTICK_PERIOD_MS);
+	}
+
+	void reconnectMqtt(){
+		while (!mqtt.connected()) {
+			bool ok = config::MqttAnon
+				? mqtt.connect(config::MqttClientId.c_str())
+				: mqtt.connect(config::MqttClientId.c_str(), config::MqttUsername.c_str(), config::MqttPassword.c_str());
+			if (ok) {
+				mqtt.subscribe(config::MqttTopicSignal.c_str());
+			} else {
+				vTaskDelay(5000 / portTICK_PERIOD_MS);
+			}
+		}
+	}
+
 	void run(void* param){
 		for(;;){
+			reconnectWifi();
+			reconnectMqtt();
 			mqtt.loop();
-			vTaskDelay(10 / portTICK_PERIOD_MS); 
+			vTaskDelay(10 / portTICK_PERIOD_MS);
 		}
 	}
 

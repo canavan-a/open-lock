@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  web-controller:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: web-controller/go.mod
+          cache-dependency-path: web-controller/go.sum
+
+      - name: Vet
+        working-directory: web-controller
+        run: go vet ./...
+
+      - name: Build
+        working-directory: web-controller
+        run: go build ./...
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-${{ hashFiles('firmware/platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Stub constants
+        run: cp firmware/src/constants.example.h firmware/src/constants.h
+
+      - name: Compile firmware
+        run: pio run --project-dir firmware
