@@ -13,7 +13,6 @@ enum State {
 	CLOSED = 1,
 };
 
-constexpr std::array<int, 2>  Angles{0, 180}; 
 constexpr int FlatDelay{1000};
 constexpr int queueSize{10};
 
@@ -22,6 +21,10 @@ struct ServoManager{
 	SemaphoreHandle_t mutex;
 
 	Queue<State> queue{queueSize};
+	
+	Queue<int> angleQueue{queueSize};
+	int CloseAngle {10};
+	
 	Servo servo;
 	int servoPin{config::ServoGpio};
 	
@@ -40,7 +43,10 @@ struct ServoManager{
 		mutex = xSemaphoreCreateMutex();
 		xSemaphoreTake(mutex, portMAX_DELAY);
 		State pState = getPState_();
-		unsafe_moveServo(Angles[static_cast<int>(pState)]);
+		CloseAngle = getPCloseAngle_();
+		
+		int angle = pState == State::OPEN ? 0 : CloseAngle;
+		unsafe_moveServo(angle);
 		state = pState;
 		xSemaphoreGive(mutex);
 	}
@@ -58,10 +64,24 @@ struct ServoManager{
 		prefs.end();
 	}
 
+	int getPCloseAngle_(){
+		prefs.begin("close-angle", true);
+		int angle = prefs.getInt("angle", 10);
+		prefs.end();
+		return angle;
+	}
+
+	void setPCloseAngle_(int angle){
+		prefs.begin("close-angle", false);
+		prefs.putInt("angle", angle);
+		prefs.end();
+	}
+
 	void moveServo(State newState){
 		xSemaphoreTake(mutex, portMAX_DELAY);
 		if (newState != state){
-			unsafe_moveServo(Angles[static_cast<int>(newState)]);
+			int angle = newState == State::OPEN ? 0 : CloseAngle;
+			unsafe_moveServo(angle);
 			state.store(newState);
 			setPState_(newState);
 		}
@@ -80,12 +100,26 @@ struct ServoManager{
 	State getState(){
 		return state.load();
 	}
+
+	void setAngle(int angle){
+		xSemaphoreTake(mutex, portMAX_DELAY);
+		CloseAngle = angle;
+		setPCloseAngle_(angle);
+		xSemaphoreGive(mutex);
+	}
 	
 
 	void run(void* param){
 		for(;;){
 			State value = queue.receive();
 			moveServo(value);
+		}
+	}
+
+	void runAngleListener(void *param){
+		for(;;){
+			int newAngle = angleQueue.receive();
+			setAngle(newAngle);
 		}
 	}
 	

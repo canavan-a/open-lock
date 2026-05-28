@@ -36,6 +36,12 @@ struct SignalManager {
 				servoManager->queue.send(State::CLOSED);
 			} else if (msg == "state"){
 				safeSend(servoManager->getState());
+			} else if (msg.startsWith("angle:")){
+				int angle = msg.substring(6).toInt();
+				if (angle ==0){
+					angle = 10;
+				}
+				servoManager->angleQueue.send(angle);
 			}
 		});
 		

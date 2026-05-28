@@ -22,10 +22,15 @@ struct Scheduler
 		static_cast<Scheduler*>(param)->sig->run(param);
 	}
 
+	static void servoAngleTask(void* param){
+		static_cast<Scheduler*>(param)->serv->runAngleListener(param);
+	}
+
 	void start(){
 		Serial.println("starting tasks");
 		xTaskCreate(servoTask, "servo", 4096, this, 1, NULL);
 		xTaskCreate(signalTask, "signal", 4096, this, 1, NULL);
+		xTaskCreate(servoAngleTask, "servoAngle", 4096, this, 1, NULL);
 	}
 	
 };
