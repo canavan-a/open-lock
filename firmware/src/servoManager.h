@@ -5,7 +5,7 @@
 #include <atomic>
 #include <Preferences.h>
 
-#include <INA219_WE.h>
+#include <Adafruit_INA219.h>
 
 #include "queue.h"
 #include "constants.h"
@@ -15,10 +15,10 @@ constexpr float SERVO_CLIP_THRESHOLD{2000000};
 
 struct ServoCurrentMonitor {
 
-	INA219_WE ina219;
+	Adafruit_INA219 ina219;
 	
 	ServoCurrentMonitor(){
-		ina219.init();	
+		ina219.begin();	
 	};
 
 	float getCurrent(){
@@ -115,7 +115,7 @@ struct ServoManager{
 					if (current == angle)
 						break;
 
-					if (!config::ServoCurrentMonitor)
+					if (!config::UseServoCurrentMonitor)
 						continue;
 
 					if (!monitor.currentSafe()){
