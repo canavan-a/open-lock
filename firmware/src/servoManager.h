@@ -11,7 +11,9 @@
 #include "constants.h"
 
 
-constexpr float SERVO_CLIP_THRESHOLD{2000000};
+constexpr float SERVO_CLIP_THRESHOLD{100000000};
+constexpr int stepDelay{20};
+
 
 struct ServoCurrentMonitor {
 
@@ -22,7 +24,9 @@ struct ServoCurrentMonitor {
 	};
 
 	float getCurrent(){
-		return ina219.getCurrent_mA();
+		auto p {ina219.getCurrent_mA()};
+		Serial.println(p);
+		return p;
 	}
 
 	bool currentSafe(){
@@ -109,22 +113,36 @@ struct ServoManager{
 			int angle = newState == State::OPEN ? 0 : CloseAngle;
 			if (angle != 0){
 				int current{0};
+				servo.attach(servoPin);
 				for(;;){
 					++current;
-					unsafe_moveServo(current, 15);					
-					if (current == angle)
+					veryUnsafe_moveServo(current);					
+					if (current >= angle)
 						break;
 
 					if (!config::UseServoCurrentMonitor)
 						continue;
 
-					if (!monitor.currentSafe()){
-						queue.clear();
-						queue.send(State::OPEN);
-						break;
+					int curDelay{0};
+					for (;;){
+						delay(1);
+						curDelay++;
+						auto cur = monitor.getCurrent();
+						// prints current every delay step after 	
+						if (curDelay>=stepDelay)
+							break;
 					}
+					// if (!monitor.currentSafe()){
+					// 	queue.clear();
+					// 	queue.send(State::OPEN);
+					// 	break;
+					// }
+						
 									
-				}	
+				}
+				servo.detach();
+				
+				
 			} else{
 				unsafe_moveServo(0);
 			}
@@ -143,6 +161,12 @@ struct ServoManager{
 		delay(FlatDelay);
 		servo.detach();
 	}
+	void veryUnsafe_moveServo(int angle) noexcept {
+		// assume attached
+		
+		servo.write(angle);
+		// delay(delayValue);
+	}
 	
 	void unsafe_moveServo(int angle, int delayValue) noexcept {
 		servo.attach(servoPin);
@@ -150,6 +174,13 @@ struct ServoManager{
 		delay(delayValue);
 		servo.detach();
 	}
+
+	void unsafe_moveServoMs(int microseconds) noexcept {
+			servo.attach(servoPin, 500, 2500);
+			servo.writeMicroseconds(microseconds);
+			delayMicroseconds(microseconds);
+			servo.detach();
+		}
 	
 	State getState(){
 		return state.load();
