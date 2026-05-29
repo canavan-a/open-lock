@@ -17,6 +17,12 @@ web-controller
 | ESP32 dev board | Microcontroller | — |
 | M3 screws | Structural fasteners | — |
 | M2 tapered screws | PCB/servo mount fasteners | — |
+| INA219 module | detects high servo current | — |
+
+## Firmware
+
+Follow readme file to get started with configuring PlatformIO on your esp32  
+
 
 ## Nix
 
