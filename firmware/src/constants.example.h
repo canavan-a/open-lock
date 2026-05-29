@@ -6,7 +6,7 @@ namespace config{
 	const int MqttPort {1883};
 	const String MqttTopicSignal{"open-lock-signal"};
 	const String MqttTopicState{"open-lock-state"}
-	const MqttClientId{"esp32"};
+	const String MqttClientId{"esp32"};
 
 	// use this if adding INA219 module on Servo
 	const bool UseServoCurrentMonitor{true};

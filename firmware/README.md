@@ -6,6 +6,7 @@ ESP32 firmware built with PlatformIO. Connects to WiFi and an MQTT broker, then 
 
 - [ESP32Servo](https://github.com/madhephaestus/ESP32Servo)
 - [PubSubClient](https://github.com/knolleary/pubsubclient)
+- [Adafruit INA219](https://github.com/adafruit/Adafruit_INA219)
 
 ## Configuration
 
@@ -15,15 +16,19 @@ Copy `src/constants.example.h` to `src/constants.h` and fill in your values:
 namespace config {
     const int ServoGpio {16};           // GPIO pin the servo signal wire is connected to
 
-    const String MqttBroker {"192.168.1.100"};
+    const String MqttBroker {"localhost"};
     const int MqttPort {1883};
     const String MqttTopicSignal {"open-lock-signal"};  // topic the firmware subscribes to
     const String MqttTopicState  {"open-lock-state"};   // topic the firmware publishes state on
     const String MqttClientId    {"esp32"};
 
-    const bool MqttAnon {true};         // set false to use username/password below
-    const String MqttUsername {"username"};
+    // use this if adding INA219 module on Servo
+    const bool UseServoCurrentMonitor {true};
+
+    // enable this if no username and password
+    const bool MqttAnon {true};
     const String MqttPassword {"password"};
+    const String MqttUsername {"username"};
 
     const String NetworkSSID     {"my-ssid"};
     const String NetworkPassword {"password"};

@@ -2,11 +2,11 @@
 
 IoT door lock with open source firmware, 3d models, and web controller
 
-firmware
+[firmware](firmware/README.md) — ESP32 firmware
 
-models
+[models](models/readme.md) — 3D printable parts
 
-web-controller
+[web-controller](web-controller/readme.md) — Go + React web UI
 
 ## Hardware
 
@@ -21,7 +21,7 @@ web-controller
 
 ## Firmware
 
-Follow readme file to get started with configuring PlatformIO on your esp32  
+See [firmware/README.md](firmware/README.md) for setup, configuration, and flashing instructions.
 
 
 ## Nix
