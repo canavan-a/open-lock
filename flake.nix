@@ -1,5 +1,5 @@
 {
-  description = "open-lock: ESP32 smart lock web controller";
+  description = "open-lock web controller";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -9,45 +9,14 @@
       forAllSystems = nixpkgs.lib.genAttrs systems;
     in {
       packages = forAllSystems (system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-
-          # Stage 1: build the React/Vite UI.
-          # After running `nix build .#ui` the first time, replace the placeholder
-          # with the hash from the error: "got: sha256-<hash>"
-          ui = pkgs.buildNpmPackage {
-            pname = "open-lock-ui";
-            version = "0.1.0";
-            src = ./web-controller/ui;
-            npmDepsHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-            installPhase = ''
-              runHook preInstall
-              cp -r dist $out
-              runHook postInstall
-            '';
-          };
-
-          # Stage 2: build the Go binary with the UI embedded.
-          # Replace vendorHash similarly after the first failed build.
+        let pkgs = nixpkgs.legacyPackages.${system}; in {
           web-controller = pkgs.buildGoModule {
             pname = "web-controller";
             version = "0.1.0";
-            src = pkgs.lib.cleanSourceWith {
-              src = ./web-controller;
-              filter = path: type:
-                let name = builtins.baseNameOf (toString path); in
-                name != "vendor" && name != "bin" && name != "node_modules";
-            };
-            vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-            preBuild = ''
-              rm -rf ui/dist
-              cp -r ${ui} ui/dist
-            '';
+            src = ./web-controller;
+            vendorHash = null;
           };
-
-        in {
-          inherit ui web-controller;
-          default = web-controller;
+          default = self.packages.${system}.web-controller;
         }
       );
 
@@ -68,22 +37,72 @@
             mqttPort = lib.mkOption {
               type = lib.types.port;
               default = 1883;
-              description = "Port mosquitto listens on (and the web-controller connects to).";
+              description = "Port mosquitto listens on.";
+            };
+
+            mqttBroker = lib.mkOption {
+              type = lib.types.str;
+              default = "127.0.0.1";
+              description = "MQTT broker hostname or IP.";
+            };
+
+            mqttAnon = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = "Allow anonymous MQTT connections. Set to false and use environmentFile for credentials.";
+            };
+
+            mqttClientId = lib.mkOption {
+              type = lib.types.str;
+              default = "web-controller";
+              description = "MQTT client ID.";
+            };
+
+            topicSignal = lib.mkOption {
+              type = lib.types.str;
+              default = "open-lock-signal";
+              description = "MQTT topic for lock signal commands.";
+            };
+
+            topicState = lib.mkOption {
+              type = lib.types.str;
+              default = "open-lock-state";
+              description = "MQTT topic for lock state updates.";
+            };
+
+            pollInterval = lib.mkOption {
+              type = lib.types.str;
+              default = "2s";
+              description = "How often to poll lock state (e.g. \"2s\", \"500ms\").";
+            };
+
+            mqttUsername = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = "MQTT username. Only used when mqttAnon is false.";
+            };
+
+            mqttPassword = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = "MQTT password. Consider using environmentFile for secrets instead.";
             };
 
             environmentFile = lib.mkOption {
               type = lib.types.nullOr lib.types.path;
               default = null;
-              description = ''
-                Optional path to an environment file.
-                Useful for MQTT_USERNAME / MQTT_PASSWORD when MQTT_ANON=false.
-                See config.example.env for all supported variables.
-              '';
+              description = "Optional environment file for MQTT credentials. See config.example.env.";
+            };
+
+            manageBroker = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = "Whether to configure and start a local mosquitto broker. Set to false if you have an existing broker.";
             };
           };
 
           config = lib.mkIf cfg.enable {
-            services.mosquitto = {
+            services.mosquitto = lib.mkIf cfg.manageBroker {
               enable = true;
               listeners = [{
                 address = "127.0.0.1";
@@ -97,12 +116,21 @@
               description = "open-lock web controller";
               wantedBy = [ "multi-user.target" ];
               after = [ "mosquitto.service" "network.target" ];
-              requires = [ "mosquitto.service" ];
+              requires = lib.optional cfg.manageBroker "mosquitto.service";
 
               environment = {
-                MQTT_BROKER = "127.0.0.1";
+                MQTT_BROKER = cfg.mqttBroker;
                 MQTT_PORT = toString cfg.mqttPort;
+                MQTT_ANON = if cfg.mqttAnon then "true" else "false";
+                MQTT_CLIENT_ID = cfg.mqttClientId;
+                TOPIC_SIGNAL = cfg.topicSignal;
+                TOPIC_STATE = cfg.topicState;
+                POLL_INTERVAL = cfg.pollInterval;
                 HTTP_ADDR = cfg.httpAddr;
+              } // lib.optionalAttrs (cfg.mqttUsername != null) {
+                MQTT_USERNAME = cfg.mqttUsername;
+              } // lib.optionalAttrs (cfg.mqttPassword != null) {
+                MQTT_PASSWORD = cfg.mqttPassword;
               };
 
               serviceConfig = {
