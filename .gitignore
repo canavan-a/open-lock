@@ -2,3 +2,4 @@ result
 result-*
 *.env
 !config.example.env
+vendor/
