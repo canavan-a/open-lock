@@ -5,8 +5,32 @@
 #include <atomic>
 #include <Preferences.h>
 
+#include <INA219_WE.h>
+
 #include "queue.h"
 #include "constants.h"
+
+
+constexpr float SERVO_CLIP_THRESHOLD{2000000};
+
+struct ServoCurrentMonitor {
+
+	INA219_WE ina219;
+	
+	ServoCurrentMonitor(){
+		ina219.init();	
+	};
+
+	float getCurrent(){
+		return ina219.getCurrent_mA();
+	}
+
+	bool currentSafe(){
+		return getCurrent()<SERVO_CLIP_THRESHOLD;
+	}
+	
+};
+
 
 enum State {
 	OPEN = 0,
@@ -29,6 +53,8 @@ struct ServoManager{
 	int servoPin{config::ServoGpio};
 	
 	std::atomic<State> state{OPEN};
+
+	ServoCurrentMonitor monitor{};
 
 	Preferences prefs;
 
@@ -81,11 +107,32 @@ struct ServoManager{
 		xSemaphoreTake(mutex, portMAX_DELAY);
 		if (newState != state){
 			int angle = newState == State::OPEN ? 0 : CloseAngle;
-			unsafe_moveServo(angle);
-			state.store(newState);
-			setPState_(newState);
-		}
+			if (angle != 0){
+				int current{0};
+				for(;;){
+					++current;
+					unsafe_moveServo(current, 15);					
+					if (current == angle)
+						break;
 
+					if (!config::ServoCurrentMonitor)
+						continue;
+
+					if (!monitor.currentSafe()){
+						queue.clear();
+						queue.send(State::OPEN);
+						break;
+					}
+									
+				}	
+			} else{
+				unsafe_moveServo(0);
+			}
+
+			state.store(newState);
+			setPState_(newState);		
+		}
+		
 		xSemaphoreGive(mutex);
 		stateChangeTrigger(newState);
 	}
@@ -94,6 +141,13 @@ struct ServoManager{
 		servo.attach(servoPin);
 		servo.write(angle);
 		delay(FlatDelay);
+		servo.detach();
+	}
+	
+	void unsafe_moveServo(int angle, int delayValue) noexcept {
+		servo.attach(servoPin);
+		servo.write(angle);
+		delay(delayValue);
 		servo.detach();
 	}
 	
@@ -124,5 +178,7 @@ struct ServoManager{
 	}
 	
 };
+
+
 
 

@@ -19,4 +19,8 @@ struct Queue{
 		xQueueReceive(handle, &item, portMAX_DELAY);
 		return item;
 	}
+
+	void clear(){
+		xQueueReset(handle);
+	}
 };

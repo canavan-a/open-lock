@@ -33,7 +33,7 @@ outputs = { nixpkgs, open-lock, ... }: {
     modules = [
       open-lock.nixosModules.default
       {
-        services.openLock = {
+        services."open-lock" = {
           enable       = true;
           httpAddr     = ":8080";
           mqttPort     = 1883;
