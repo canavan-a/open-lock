@@ -22,10 +22,10 @@
 
       nixosModules.default = { config, lib, pkgs, ... }:
         let
-          cfg = config.services.openLock;
+          cfg = config.services."open-lock";
           webController = self.packages.${pkgs.system}.web-controller;
         in {
-          options.services.openLock = {
+          options.services."open-lock" = {
             enable = lib.mkEnableOption "open-lock web controller and MQTT broker";
 
             httpAddr = lib.mkOption {
