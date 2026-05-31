@@ -95,7 +95,7 @@ struct SignalManager {
 			reconnectWifi();
 			reconnectMqtt();
 			mqtt.loop();
-			vTaskDelay(10 / portTICK_PERIOD_MS);
+			vTaskDelay(250 / portTICK_PERIOD_MS);
 		}
 	}
 

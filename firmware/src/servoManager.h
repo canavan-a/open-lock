@@ -111,7 +111,8 @@ struct ServoManager{
 		xSemaphoreTake(mutex, portMAX_DELAY);
 		if (newState != state){
 			int angle = newState == State::OPEN ? 0 : CloseAngle;
-			if (angle != 0){
+			if (angle != 0 && config::UseServoCurrentMonitor){
+				Serial.println("bad");
 				int current{0};
 				servo.attach(servoPin);
 				for(;;){
@@ -143,7 +144,11 @@ struct ServoManager{
 				servo.detach();
 				
 				
-			} else{
+			} else if(angle != 0 && !config::UseServoCurrentMonitor){
+				Serial.println("closing");
+				unsafe_moveServo(CloseAngle);
+			}else {
+				Serial.println("opening");
 				unsafe_moveServo(0);
 			}
 
