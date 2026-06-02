@@ -111,40 +111,7 @@ struct ServoManager{
 		xSemaphoreTake(mutex, portMAX_DELAY);
 		if (newState != state){
 			int angle = newState == State::OPEN ? 0 : CloseAngle;
-			if (angle != 0 && config::UseServoCurrentMonitor){
-				Serial.println("bad");
-				int current{0};
-				servo.attach(servoPin);
-				for(;;){
-					++current;
-					veryUnsafe_moveServo(current);					
-					if (current >= angle)
-						break;
-
-					if (!config::UseServoCurrentMonitor)
-						continue;
-
-					int curDelay{0};
-					for (;;){
-						delay(1);
-						curDelay++;
-						auto cur = monitor.getCurrent();
-						// prints current every delay step after 	
-						if (curDelay>=stepDelay)
-							break;
-					}
-					// if (!monitor.currentSafe()){
-					// 	queue.clear();
-					// 	queue.send(State::OPEN);
-					// 	break;
-					// }
-						
-									
-				}
-				servo.detach();
-				
-				
-			} else if(angle != 0 && !config::UseServoCurrentMonitor){
+			if(angle != 0 ){
 				Serial.println("closing");
 				unsafe_moveServo(CloseAngle);
 			}else {
@@ -189,6 +156,17 @@ struct ServoManager{
 	
 	State getState(){
 		return state.load();
+	}
+
+	void toggle(){
+		Serial.println("toggle triggered");
+		xSemaphoreTake(mutex, portMAX_DELAY);
+		if (state == State::OPEN){
+			queue.send(State::CLOSED);
+		} else{
+			queue.send(State::OPEN);
+		}
+		xSemaphoreGive(mutex);
 	}
 
 	void setAngle(int angle){

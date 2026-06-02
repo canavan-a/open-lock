@@ -6,7 +6,7 @@ Scheduler *s;
 
 void setup(){
 	Serial.begin(115200);
-
+	setCpuFrequencyMhz(80);
 	Wire.begin();
 	for(int i = 0; i < 127; i++) {
 	    Wire.beginTransmission(i);

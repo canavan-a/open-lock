@@ -7,24 +7,25 @@
 #include "queue.h"
 #include "constants.h"
 #include "servoManager.h"
+#include "batteryManager.h"
+#include "button.h"
 
 struct SignalManager {
 	ServoManager* servoManager;
 	WiFiClient wifiClient;
 	PubSubClient mqtt{wifiClient};
 	SemaphoreHandle_t sendMutex;
-
 	
 
 	// pass queue from servoManager 
-	SignalManager(ServoManager* sm): servoManager(sm) {
+	SignalManager(ServoManager* sm, Button* btn, BatteryManager* battery): servoManager(sm) {
 		sendMutex = xSemaphoreCreateMutex();
 		Serial.println("connecting wifi");
 		WiFi.begin(config::NetworkSSID, config::NetworkPassword);
 		while (WiFi.status() != WL_CONNECTED) delay(500);
 		
 		Serial.println("wifi connected");
-		WiFi.setSleep(true);
+		WiFi.setSleep(WIFI_PS_MAX_MODEM);
 
 		mqtt.setServer(config::MqttBroker.c_str(), config::MqttPort);
 		
@@ -58,6 +59,15 @@ struct SignalManager {
 		servoManager->stateChangeTrigger = [this](State s){
 					this->safeSend(s);
 				};
+
+		btn->trigger = [sm](){
+			sm->toggle();	
+		};
+
+		battery->notifier = [this](int percent){
+			this->safeSendBatteryPercent(percent);	
+		};
+		
 		
 
 	}
@@ -66,6 +76,12 @@ struct SignalManager {
 		xSemaphoreTake(sendMutex, portMAX_DELAY);
 		String stateStr = state == State::OPEN ? "open" : "closed";
 		mqtt.publish(config::MqttTopicState.c_str(), stateStr.c_str());
+		xSemaphoreGive(sendMutex);
+	}
+
+	void safeSendBatteryPercent(int batteryPercent){
+		xSemaphoreTake(sendMutex, portMAX_DELAY);
+		mqtt.publish(config::MqttTopicBattery.c_str(), batteryPercent);
 		xSemaphoreGive(sendMutex);
 	}
 	

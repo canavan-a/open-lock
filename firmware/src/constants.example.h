@@ -6,10 +6,14 @@ namespace config{
 	const int MqttPort {1883};
 	const String MqttTopicSignal{"open-lock-signal"};
 	const String MqttTopicState{"open-lock-state"}
+	const String MqttTopicBattery{"open-lock-battery"};
 	const String MqttClientId{"esp32"};
 
-	// use this if adding INA219 module on Servo
-	const bool UseServoCurrentMonitor{true};
+	// i2c pins for battery monitoring
+	const int BoardPinSDA{21};
+	const int BoardPinSCL{22};
+
+	const int LipoCapacityMah{10000};
 
 	// enable this if no username and password
 	const bool MqttAnon {true};
@@ -19,4 +23,7 @@ namespace config{
 
 	const String NetworkSSID {"my-ssid"};
 	const String NetworkPassword {"password"};
+
+	const bool ButtonEnabled {true};
+	const int ButtonPin {4};
 }

@@ -22,9 +22,6 @@ namespace config {
     const String MqttTopicState  {"open-lock-state"};   // topic the firmware publishes state on
     const String MqttClientId    {"esp32"};
 
-    // use this if adding INA219 module on Servo
-    const bool UseServoCurrentMonitor {true};
-
     // enable this if no username and password
     const bool MqttAnon {true};
     const String MqttPassword {"password"};
