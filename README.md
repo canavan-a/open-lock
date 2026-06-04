@@ -13,14 +13,14 @@ IoT door lock with open source firmware, 3d models, and web controller
 | Part | Notes | Link |
 |------|-------|------|
 | Servo — MG995 Metal Gear | Main actuator for the lock | [Amazon](https://www.amazon.com/Deegoo-FPV-Servo-MG995-Metal-Gear/dp/B07NQJ1VZ2) |
-| Battery pack | Power supply | [Amazon](https://www.amazon.com/dp/B0DZX39MHK) |
 | ESP32 WROOM-32U  | Microcontroller | [Amazon](https://www.amazon.com/D-FLIFE-ESP32-DevKitC-Development-ESP32-WROOM-32U-Bluetooth/dp/B089F6LRBS/ref=sr_1_1) |
 | M3 screws | Structural fasteners | — |
 | M2 tapered screws | PCB/servo mount fasteners | — |
-| INA219 module | detects high servo current | — |
-| XL63020 module | Buck Boost module (for esp battry input) | [Amazon](https://www.amazon.com/dp/B0D8T3J8QZ) |
+| 10,000 mah Lipo Battery | main power source | [Amazon](https://www.amazon.com/dp/B0FBRGNCJF) |
+| Spark Fun Battery Babysitter | charge module + fuel gauge | [SparkFun](https://www.sparkfun.com/sparkfun-battery-babysitter-lipo-battery-manager.html) |  
+| XL63020 module | Buck Boost module (for esp lipo input) | [Amazon](https://www.amazon.com/dp/B0D8T3J8QZ) |
 | wlaniot PCI antenna | U.FL internal antenna module | [Amazon](https://www.amazon.com/dp/B077SVP7PN) |
-
+| (optional) INA219 module | detects high servo current | — |
 
 ## Firmware
 
@@ -64,7 +64,7 @@ Reference the local path instead of GitHub:
 inputs.open-lock.url = "path:/path/to/open-lock";
 ```
 
-### Build the binary
+### Run using dev shells
 
 ```bash
 nix build github:canavan-a/open-lock#web-controller
