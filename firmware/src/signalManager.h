@@ -81,7 +81,7 @@ struct SignalManager {
 
 	void safeSendBatteryPercent(int batteryPercent){
 		xSemaphoreTake(sendMutex, portMAX_DELAY);
-		mqtt.publish(config::MqttTopicBattery.c_str(), batteryPercent);
+		mqtt.publish(config::MqttTopicBattery.c_str(), String(batteryPercent).c_str());
 		xSemaphoreGive(sendMutex);
 	}
 	

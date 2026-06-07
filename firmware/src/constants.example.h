@@ -10,6 +10,7 @@ namespace config{
 	const String MqttClientId{"esp32"};
 
 	// i2c pins for battery monitoring
+	const bool FuelCheck{true};
 	const int BoardPinSDA{21};
 	const int BoardPinSCL{22};
 

@@ -11,6 +11,7 @@ struct Scheduler
 	SignalManager *sig;
 	ServoManager *serv;
 	Button *btn;
+	BatteryManager *battery;
 	
 	Scheduler() {
 		serv = new ServoManager();
