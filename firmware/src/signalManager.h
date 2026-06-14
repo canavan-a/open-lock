@@ -29,7 +29,7 @@ struct SignalManager {
 
 		mqtt.setServer(config::MqttBroker.c_str(), config::MqttPort);
 		
-		mqtt.setCallback([this](char* topic, byte* payload, unsigned int length){
+		mqtt.setCallback([this, battery](char* topic, byte* payload, unsigned int length){
 			String msg((char*)payload, length);
 			if (msg == "open"){
 				servoManager->queue.send(State::OPEN);
@@ -37,6 +37,8 @@ struct SignalManager {
 				servoManager->queue.send(State::CLOSED);
 			} else if (msg == "state"){
 				safeSend(servoManager->getState());
+			} else if (msg == "battery"){
+				safeSendBatteryPercent(battery->currentPercent);
 			} else if (msg.startsWith("angle:")){
 				int angle = msg.substring(6).toInt();
 				if (angle ==0){

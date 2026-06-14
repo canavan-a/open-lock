@@ -15,6 +15,8 @@ namespace config{
 	const int BoardPinSCL{22};
 
 	const int LipoCapacityMah{10000};
+	const bool FuelGaugeReset{false};
+	const int BatteryPollMs{60000};
 
 	// enable this if no username and password
 	const bool MqttAnon {true};

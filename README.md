@@ -2,6 +2,11 @@
 
 IoT door lock with open source firmware, 3d models, and web controller
 
+<p align="center">
+  <img src="images/open-lock-1.jpg" width="48%" alt="Open Lock" />
+  <img src="images/open-lock-2.jpg" width="48%" alt="Open Lock" />
+</p>
+
 [firmware](firmware/README.md) — ESP32 firmware
 
 [models](models/readme.md) — 3D printable parts

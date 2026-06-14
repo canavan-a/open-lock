@@ -15,15 +15,13 @@ struct BatteryManager{
 	};
 
 	
-	BatteryManager(){
+BatteryManager(){
 		if (config::FuelCheck){
-			// i2c pins on esp32
-			Wire.begin(config::BoardPinSDA, config::BoardPinSCL);
-			lipo.begin();
-			
-			// lipo.begin();
-			// if (!lipo.begin()) Serial.println("BQ27441");
-			
+			if (!lipo.begin()) Serial.println("BQ27441 init failed");
+			if (config::FuelGaugeReset){
+				lipo.enterConfig();
+				lipo.exitConfig(true);
+			}
 			lipo.setCapacity(config::LipoCapacityMah);
 		}
 	}
@@ -36,9 +34,9 @@ struct BatteryManager{
 					currentPercent = percent;
 					notifier(percent);
 				}
-				Serial.println(percent);
+				Serial.printf("Battery: %d%% | voltage: %dmV | flags: 0x%04X\n", percent, lipo.voltage(), lipo.flags());
 			}
-			vTaskDelay(pdMS_TO_TICKS(5000));	
+			vTaskDelay(pdMS_TO_TICKS(config::BatteryPollMs));
 		}
 		
 	}
