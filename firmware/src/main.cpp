@@ -5,8 +5,8 @@
 Scheduler *s;
 
 void setup(){
-	Serial.begin(115200);
 	setCpuFrequencyMhz(80);
+	Serial.begin(115200);
 	Wire.begin(21, 22);
 	Wire.setClock(100000);
 

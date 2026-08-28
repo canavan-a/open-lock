@@ -1,1 +1,10 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes ping-fast {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+.animate-ping-fast {
+  animation: ping-fast 0.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}

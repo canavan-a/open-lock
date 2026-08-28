@@ -70,6 +70,12 @@
               description = "MQTT topic for lock state updates.";
             };
 
+            topicBattery = lib.mkOption {
+              type = lib.types.str;
+              default = "open-lock-battery";
+              description = "MQTT topic for battery level updates.";
+            };
+
             pollInterval = lib.mkOption {
               type = lib.types.str;
               default = "2s";
@@ -125,6 +131,7 @@
                 MQTT_CLIENT_ID = cfg.mqttClientId;
                 TOPIC_SIGNAL = cfg.topicSignal;
                 TOPIC_STATE = cfg.topicState;
+                TOPIC_BATTERY = cfg.topicBattery;
                 POLL_INTERVAL = cfg.pollInterval;
                 HTTP_ADDR = cfg.httpAddr;
               } // lib.optionalAttrs (cfg.mqttUsername != null) {
@@ -148,6 +155,16 @@
         let pkgs = nixpkgs.legacyPackages.${system}; in {
           default = pkgs.mkShell {
             packages = [ pkgs.go pkgs.nodejs pkgs.mosquitto ];
+
+            # Point `go run .` at the home network broker by default. Anything
+            # already exported in your shell wins, so you can still override
+            # per-invocation, e.g. `MQTT_BROKER=localhost go run .`.
+            shellHook = ''
+              : "''${MQTT_BROKER:=home-server}"
+              : "''${MQTT_PORT:=1883}"
+              : "''${MQTT_ANON:=true}"
+              export MQTT_BROKER MQTT_PORT MQTT_ANON
+            '';
           };
         }
       );

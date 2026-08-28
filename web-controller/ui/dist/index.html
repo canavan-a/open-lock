@@ -1,13 +1,33 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Open Lock</title>
-    <script type="module" crossorigin src="/assets/index-h2aktmSF.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DgF0iQ8f.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+<!DOCTYPE html>
+<html lang="en" data-theme="black">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <style>
+    html,
+    body {
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+  </style>
+  <title>Open Lock</title>
+  <script type="module" crossorigin src="/assets/index-DLrbYRza.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BuXe-4DS.css">
+</head>
+
+<body class="overscroll-none" style="
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    ">
+  <div id="root"></div>
+
+  <script>
+    document.addEventListener("gesturestart", (e) => e.preventDefault());
+    document.addEventListener("dblclick", (e) => e.preventDefault());
+  </script>
+</body>
+
 </html>

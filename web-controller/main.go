@@ -1,62 +1,68 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
+	"errors"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
-	"open-lock/web-controller/config"
-	"open-lock/web-controller/lock"
+	"open-lock/web-controller/internal/config"
+	"open-lock/web-controller/internal/door"
+	"open-lock/web-controller/internal/httpapi"
 )
 
 func main() {
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	if err := run(log); err != nil {
+		log.Error("fatal", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run(log *slog.Logger) error {
 	cfg := config.FromEnv()
 
-	lc, err := lock.New(cfg)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	lk, err := door.New(cfg, log)
 	if err != nil {
-		log.Fatalf("mqtt: %v", err)
+		return err
 	}
-	defer lc.Stop()
-	lc.StartPolling()
-
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("POST /open", func(w http.ResponseWriter, r *http.Request) {
-		lc.Open()
-		w.WriteHeader(http.StatusAccepted)
-	})
-
-	mux.HandleFunc("POST /close", func(w http.ResponseWriter, r *http.Request) {
-		lc.Close()
-		w.WriteHeader(http.StatusAccepted)
-	})
-
-	mux.HandleFunc("GET /state", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"state": lc.State().String()})
-	})
+	defer lk.Stop()
+	go lk.Poll(ctx)
 
 	uiFS, err := fs.Sub(uiDist, "ui/dist")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	mux.Handle("/", http.FileServer(http.FS(uiFS)))
 
-	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: mux}
+	srv := &http.Server{
+		Addr:    cfg.HTTPAddr,
+		Handler: httpapi.New(lk, uiFS, log),
+	}
 
+	errc := make(chan error, 1)
 	go func() {
-		sig := make(chan os.Signal, 1)
-		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-		<-sig
-		srv.Close()
+		log.Info("listening", "addr", cfg.HTTPAddr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errc <- err
+		}
 	}()
 
-	log.Printf("listening on %s", cfg.HTTPAddr)
-	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
+		log.Info("shutting down")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutdownCtx)
 	}
 }
