@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the web UI's icon (web-controller/ui/public/icon.svg). -->
+    <color name="ic_launcher_background">#000000</color>
+</resources>

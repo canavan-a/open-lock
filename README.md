@@ -13,6 +13,8 @@ IoT door lock with open source firmware, 3d models, and web controller
 
 [web-controller](web-controller/readme.md) — Go + React web UI
 
+[mobile](mobile/README.md) — Super Lock, the sideloaded Android app
+
 ## Hardware
 
 | Part | Notes | Link |

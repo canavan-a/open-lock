@@ -1,0 +1,7 @@
+# This directory holds local signing material (release.keystore, keystore.env)
+# and built APKs. Track the directory and the release tooling, never the
+# secrets or build output.
+*
+!.gitignore
+!release.sh
+!README.md

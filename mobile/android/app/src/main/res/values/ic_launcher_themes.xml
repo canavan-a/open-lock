@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Per-theme launcher icons (see src/appIcon.ts and AppIconModule.kt).
+     Colors follow the palettes in src/theme.ts: background is the theme's
+     bg, the lock its text color, the keyhole its accent (ember's brightened
+     so it reads on near-black). -->
+<resources>
+    <color name="ic_bg_light">#ffffff</color>
+    <color name="ic_lock_light">#1b1f24</color>
+    <color name="ic_key_light">#0969da</color>
+    <color name="ic_bg_dark">#0d1117</color>
+    <color name="ic_lock_dark">#e6edf3</color>
+    <color name="ic_key_dark">#2f81f7</color>
+    <color name="ic_bg_slate">#1e2530</color>
+    <color name="ic_lock_slate">#dde3ea</color>
+    <color name="ic_key_slate">#5aa9e6</color>
+    <color name="ic_bg_sepia">#f4ecd8</color>
+    <color name="ic_lock_sepia">#3b2f1e</color>
+    <color name="ic_key_sepia">#a0651b</color>
+    <color name="ic_bg_ember">#050403</color>
+    <color name="ic_lock_ember">#e8d9d0</color>
+    <color name="ic_key_ember">#c4502e</color>
+    <!-- Below API 26 there are no adaptive icons; every theme falls back
+         to the original PNGs. -->
+    <item name="ic_launcher_light" type="mipmap">@mipmap/ic_launcher</item>
+    <item name="ic_launcher_dark" type="mipmap">@mipmap/ic_launcher</item>
+    <item name="ic_launcher_slate" type="mipmap">@mipmap/ic_launcher</item>
+    <item name="ic_launcher_sepia" type="mipmap">@mipmap/ic_launcher</item>
+    <item name="ic_launcher_ember" type="mipmap">@mipmap/ic_launcher</item>
+</resources>
