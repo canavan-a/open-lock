@@ -63,25 +63,28 @@ function usePoll(fn: () => void, ms: number, enabled: boolean) {
   )
 }
 
-function batteryIcon(percent: number): string {
+function batteryIcon(percent: number, charging: boolean): string {
   if (percent === BATTERY_UNAVAILABLE) return 'battery-unknown'
-  if (percent >= 95) return 'battery'
-  if (percent < 5) return 'battery-outline'
-  return `battery-${Math.max(10, Math.round(percent / 10) * 10)}`
+  const base = charging ? 'battery-charging' : 'battery'
+  if (percent >= 95) return charging ? 'battery-charging-100' : base
+  if (percent < 5) return `${base}-outline`
+  return `${base}-${Math.max(10, Math.round(percent / 10) * 10)}`
 }
 
-function Battery({ percent }: { percent: number | null }) {
+function Battery({ percent, charging }: { percent: number | null; charging: boolean }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   if (percent === null) return <View />
 
   const isError = percent === BATTERY_UNAVAILABLE
   const clamped = Math.min(100, Math.max(0, percent))
-  const color = isError || clamped > 20 ? theme.textMuted : theme.danger
+  const showCharging = charging && !isError
+  const color = isError || clamped > 20 || showCharging ? theme.textMuted : theme.danger
+  const label = isError ? 'Battery unknown' : `Battery ${clamped}%${showCharging ? ', charging' : ''}`
   return (
-    <View style={styles.battery} accessibilityLabel={isError ? 'Battery unknown' : `Battery ${clamped}%`}>
+    <View style={styles.battery} accessibilityLabel={label}>
       <MaterialCommunityIcons
-        name={batteryIcon(percent)}
+        name={batteryIcon(percent, showCharging)}
         size={22}
         color={color}
         style={styles.batteryIcon}
@@ -117,6 +120,7 @@ export function LockScreen() {
   const [phase, setPhase] = useState<LockPhase>('idle')
   const [action, setAction] = useState<'open' | 'close' | null>(null)
   const [batteryPercent, setBatteryPercent] = useState<number | null>(null)
+  const [charging, setCharging] = useState(false)
   const [error, setError] = useState<string>()
   const prevStateRef = useRef<DoorState | null>(null)
   const pendingTimeoutRef = useRef(0)
@@ -150,13 +154,17 @@ export function LockScreen() {
 
   const fetchBattery = () => {
     getBattery()
-      .then(({ battery }) => setBatteryPercent(battery))
+      .then(({ battery, charging }) => {
+        setBatteryPercent(battery)
+        setCharging(!!charging)
+      })
       .catch(() => {})
   }
 
-  const socketConnected = useLockSocket(({ state, battery }) => {
+  const socketConnected = useLockSocket(({ state, battery, charging }) => {
     applyState(state)
     setBatteryPercent(battery)
+    setCharging(!!charging)
   })
 
   usePoll(fetchState, STATE_POLL_MS, !socketConnected)
@@ -191,7 +199,7 @@ export function LockScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.topBar}>
-        <Battery percent={batteryPercent} />
+        <Battery percent={batteryPercent} charging={charging} />
         <Pressable
           hitSlop={12}
           onPress={() => navigation.navigate('Settings')}

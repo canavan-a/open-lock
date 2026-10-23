@@ -161,6 +161,8 @@ struct Bq27441{
 struct BatteryManager{
 
 	int currentPercent{999};
+	// last average current in mA, positive = charging; only valid while currentPercent != 999
+	int currentMa{0};
 
 	Bq27441 lipo;
 	bool ready{false};
@@ -196,6 +198,7 @@ struct BatteryManager{
 			int percent = ready ? lipo.soc() : 999;
 			int current = ready ? lipo.avgCurrent() : 0;
 			currentPercent = percent;
+			currentMa = current;
 			notifier(percent, current);
 			ESP_LOGI("battery", "%d%% | %dmV | %dmA | flags: 0x%04X", percent, lipo.voltage(), current, lipo.flags());
 			vTaskDelay(pdMS_TO_TICKS(config::BatteryPollMs));

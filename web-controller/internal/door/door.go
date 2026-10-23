@@ -1,6 +1,7 @@
 // Package door is the MQTT bridge to the physical lock. It publishes commands on
-// the signal topic and keeps a cached view of the lock state and battery level
-// reported by the firmware on the state and battery topics.
+// the signal topic and keeps a cached view of the lock state, battery level and
+// battery current reported by the firmware on the state, battery and current
+// topics.
 package door
 
 import (
@@ -39,6 +40,11 @@ func (s State) String() string {
 // fuel gauge cannot be read.
 const BatteryUnknown = 999
 
+// ChargingMinMa is the average battery current above which the lock counts as
+// charging. The fuel gauge reads a few mA of noise at rest, and on battery the
+// lock always draws, so anything clearly positive means it is plugged in.
+const ChargingMinMa = 10
+
 // Door owns the MQTT connection and the cached lock state.
 type Door struct {
 	cfg    config.Config
@@ -48,18 +54,23 @@ type Door struct {
 	mu      sync.RWMutex
 	state   State
 	battery int
+	current int
 	subs    map[chan Snapshot]struct{}
 }
 
 // Snapshot is everything the UI shows. It is pushed to subscribers on every
 // firmware report, including repeats of an unchanged state, since those are
-// the firmware acknowledging a command.
+// the firmware acknowledging a command. Current is the battery's average
+// current in mA (positive = charging), 0 until the firmware reports one.
 type Snapshot struct {
-	State   string `json:"state"`
-	Battery int    `json:"battery"`
+	State    string `json:"state"`
+	Battery  int    `json:"battery"`
+	Current  int    `json:"current"`
+	Charging bool   `json:"charging"`
 }
 
-// New connects to the broker and subscribes to the state and battery topics.
+// New connects to the broker and subscribes to the state, battery and current
+// topics.
 // It blocks until the initial connection succeeds or fails.
 func New(cfg config.Config, log *slog.Logger) (*Door, error) {
 	d := &Door{
@@ -98,6 +109,9 @@ func (d *Door) onConnect(mc mqtt.Client) {
 	mc.Subscribe(d.cfg.TopicBattery, 1, func(_ mqtt.Client, msg mqtt.Message) {
 		d.handleBattery(msg.Payload())
 	})
+	mc.Subscribe(d.cfg.TopicCurrent, 1, func(_ mqtt.Client, msg mqtt.Message) {
+		d.handleCurrent(msg.Payload())
+	})
 
 	d.requestState()
 	d.requestBattery()
@@ -129,6 +143,17 @@ func (d *Door) handleBattery(payload []byte) {
 	d.mu.Unlock()
 }
 
+func (d *Door) handleCurrent(payload []byte) {
+	ma, err := strconv.Atoi(string(payload))
+	if err != nil {
+		return
+	}
+	d.mu.Lock()
+	d.current = ma
+	d.broadcastLocked()
+	d.mu.Unlock()
+}
+
 // Snapshot returns the current state and battery together.
 func (d *Door) Snapshot() Snapshot {
 	d.mu.RLock()
@@ -137,7 +162,12 @@ func (d *Door) Snapshot() Snapshot {
 }
 
 func (d *Door) snapshotLocked() Snapshot {
-	return Snapshot{State: d.state.String(), Battery: d.battery}
+	return Snapshot{
+		State:    d.state.String(),
+		Battery:  d.battery,
+		Current:  d.current,
+		Charging: d.current > ChargingMinMa,
+	}
 }
 
 // Subscribe returns a channel that receives the current snapshot immediately

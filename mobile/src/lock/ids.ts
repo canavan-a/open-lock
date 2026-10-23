@@ -1,6 +1,15 @@
 // Kept free of imports so lib/config can use it without pulling in Skia (or
 // importing the registry, which imports config).
-export const LOCK_ANIMATION_IDS = ['classic', 'jello', 'gummy', 'liquid'] as const
+export const LOCK_ANIMATION_IDS = [
+  'classic',
+  'spin3d',
+  'pixels',
+  'liquid',
+  'key',
+  'magnet',
+  'flip',
+  'gummy',
+] as const
 
 export type LockAnimationId = (typeof LOCK_ANIMATION_IDS)[number]
 

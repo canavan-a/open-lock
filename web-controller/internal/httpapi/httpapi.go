@@ -44,7 +44,8 @@ func New(lk Locker, uiFS fs.FS, log *slog.Logger) *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"state": lk.State().String()})
 	})
 	r.GET("/battery", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"battery": lk.Battery()})
+		s := lk.Snapshot()
+		c.JSON(http.StatusOK, gin.H{"battery": s.Battery, "current": s.Current, "charging": s.Charging})
 	})
 	r.GET("/ws", func(c *gin.Context) {
 		serveSocket(c.Writer, c.Request, lk, log)

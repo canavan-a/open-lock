@@ -15,7 +15,7 @@ namespace config{
 	const char* const MqttTopicSignal{"open-lock-signal"};
 	const char* const MqttTopicState{"open-lock-state"};
 	const char* const MqttTopicBattery{"open-lock-battery"};
-	// average battery current in mA (negative = discharging), for measuring draw
+	// average battery current in mA (positive = charging, negative = discharging), retained
 	const char* const MqttTopicCurrent{"open-lock-current"};
 	// retained "online", replaced by the broker with "offline" if the lock drops
 	const char* const MqttTopicOnline{"open-lock-online"};

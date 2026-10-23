@@ -7,7 +7,8 @@ import { GUMMY, type LockPhase } from '../lock/motion'
 import { LOCK_ANIMATIONS, LockArt, type LockAnimationId, useLockAnimation } from '../lock/registry'
 import { type Theme, useTheme, useThemedStyles } from '../theme'
 
-const PREVIEW_SIZE = 112
+const PREVIEW_SIZE = 84
+const COLUMNS = 3
 // demo loop for the selected card: wait as if a command were pending, flip,
 // then rest long enough to watch the landing
 const DEMO_PENDING_MS = 800
@@ -16,13 +17,11 @@ const DEMO_REST_MS = 1700
 function AnimationCard({
   id,
   label,
-  blurb,
   selected,
   onPick,
 }: {
   id: LockAnimationId
   label: string
-  blurb: string
   selected: boolean
   onPick: () => void
 }) {
@@ -71,13 +70,12 @@ function AnimationCard({
         colors={{ ink: theme.text, accent: theme.primary, bg: theme.surface }}
       />
       <Text style={styles.label}>{label}</Text>
-      <Text style={styles.blurb}>{blurb}</Text>
     </Pressable>
   )
 }
 
-// Grid of live previews; the selected one plays a lock/unlock loop. Picking
-// saves immediately, like the theme swatches.
+// Three-column grid of live previews, names only: the selected one plays a
+// lock/unlock loop. Picking saves immediately, like the theme swatches.
 export function AnimationPicker() {
   const styles = useThemedStyles(makeStyles)
   const current = useLockAnimation()
@@ -90,10 +88,13 @@ export function AnimationPicker() {
           key={a.id}
           id={a.id}
           label={a.label}
-          blurb={a.blurb}
           selected={current === a.id}
           onPick={() => pick(a.id)}
         />
+      ))}
+      {/* keep a short last row lined up with the columns above */}
+      {Array.from({ length: (COLUMNS - (LOCK_ANIMATIONS.length % COLUMNS)) % COLUMNS }, (_, i) => (
+        <View key={i} style={styles.spacer} />
       ))}
     </View>
   )
@@ -101,18 +102,18 @@ export function AnimationPicker() {
 
 function makeStyles(theme: Theme) {
   return StyleSheet.create({
-    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8 },
     card: {
-      width: '48.5%',
+      width: '32%',
       alignItems: 'center',
-      paddingBottom: 12,
-      borderRadius: 14,
+      paddingBottom: 8,
+      borderRadius: 12,
       borderWidth: 2,
       borderColor: theme.border,
       backgroundColor: theme.surface,
     },
+    spacer: { width: '32%' },
     cardActive: { borderColor: theme.primary },
-    label: { color: theme.text, fontSize: 14, fontWeight: '600' },
-    blurb: { color: theme.textMuted, fontSize: 11, textAlign: 'center', paddingHorizontal: 8, marginTop: 2 },
+    label: { color: theme.text, fontSize: 12, fontWeight: '600' },
   })
 }

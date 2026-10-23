@@ -11,7 +11,7 @@ const PENDING_TIMEOUT_MS = 15000;
 const STATE_POLL_MS = 1000;
 const BATTERY_POLL_MS = 5000;
 
-const BatteryGauge = ({ percent }) => {
+const BatteryGauge = ({ percent, charging }) => {
   if (percent === null) return null;
 
   const isError = percent === 999;
@@ -24,15 +24,29 @@ const BatteryGauge = ({ percent }) => {
         ? "bg-yellow-400"
         : "bg-green-500";
   const label = isError ? "?" : `${clamped}%`;
+  const showBolt = charging && !isError;
 
   return (
-    <div className="flex items-center gap-2 opacity-60">
+    <div
+      className="flex items-center gap-2 opacity-60"
+      title={showBolt ? "Charging" : undefined}
+    >
       <div className="relative w-20 h-3 rounded-sm border border-current overflow-hidden">
         <div
           className={`absolute inset-y-0 left-0 ${color} transition-all duration-500`}
           style={{ width: `${clamped}%` }}
         />
       </div>
+      {showBolt && (
+        <svg
+          className="w-3 h-3 -mx-1"
+          viewBox="0 0 24 24"
+          aria-label="Charging"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" fill="currentColor" />
+        </svg>
+      )}
       <span className="text-xs tabular-nums">{label}</span>
     </div>
   );
@@ -43,6 +57,7 @@ export const Lock = () => {
   const [isToggling, setIsToggling] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [batteryPercent, setBatteryPercent] = useState(null);
+  const [charging, setCharging] = useState(false);
   const prevStateRef = useRef(null);
   const pendingTimeoutRef = useRef(null);
 
@@ -65,13 +80,17 @@ export const Lock = () => {
   const fetchBattery = () => {
     axios
       .get("/battery")
-      .then((response) => setBatteryPercent(response.data.battery))
+      .then((response) => {
+        setBatteryPercent(response.data.battery);
+        setCharging(!!response.data.charging);
+      })
       .catch(() => {});
   };
 
-  const socketConnected = useLockSocket(({ state, battery }) => {
+  const socketConnected = useLockSocket(({ state, battery, charging }) => {
     applyState(state);
     setBatteryPercent(battery);
+    setCharging(!!charging);
   });
 
   // Polling is only the fallback while the socket is down.
@@ -157,7 +176,7 @@ export const Lock = () => {
               <span className="loading loading-infinity loading-lg"></span>
             )}
           </div>
-          <BatteryGauge percent={batteryPercent} />
+          <BatteryGauge percent={batteryPercent} charging={charging} />
           <div className="flex gap-4 w-full">
             <button
               onClick={() => doCommand("open")}

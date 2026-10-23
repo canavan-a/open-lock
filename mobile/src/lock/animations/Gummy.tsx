@@ -1,9 +1,8 @@
-import { Group } from '@shopify/react-native-skia'
 import React from 'react'
 import { Easing, useDerivedValue, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated'
 import { shacklePath } from '../geometry'
-import { BOUNCY, kick, type LockArtProps, useKnownOpacity, useLockMotion } from '../motion'
-import { BASE, Body, Keyhole, LockCanvas, Shackle } from '../parts'
+import { BOUNCY, kick, type LockArtProps, useLockMotion } from '../motion'
+import { BASE, Body, Keyhole, LockCanvas, Shackle, Solid } from '../parts'
 
 // A gummy candy that hops, lands with a squash, and boings its shackle.
 // Hops in place while waiting.
@@ -14,7 +13,7 @@ export function Gummy({ size, state, phase, press, colors }: LockArtProps) {
     spring: BOUNCY,
     onChange: () => {
       hop.value = withSequence(
-        withTiming(-18, { duration: 110, easing: Easing.out(Easing.quad) }),
+        withTiming(-13, { duration: 110, easing: Easing.out(Easing.quad) }),
         withTiming(0, { duration: 110, easing: Easing.in(Easing.quad) }, () => {
           'worklet'
           squash.value = withSpring(0, { ...BOUNCY, velocity: 10 })
@@ -23,14 +22,13 @@ export function Gummy({ size, state, phase, press, colors }: LockArtProps) {
     },
     onFail: () => kick(squash, -7),
   })
-  const opacity = useKnownOpacity(m)
   const shackle = useDerivedValue(() => shacklePath(m.open.value))
 
   const transform = useDerivedValue(() => {
     const t = m.clock.value / 1000
     const waitHop = -Math.abs(Math.sin(t * 7)) * 6 * m.pending.value
     // stretch tall in the air, squash flat on landing
-    const air = Math.min(0, hop.value) / -18
+    const air = Math.min(0, hop.value) / -13
     const s = squash.value * 0.2 - air * 0.08
     return [
       { translateX: m.shake.value * 7 },
@@ -42,11 +40,11 @@ export function Gummy({ size, state, phase, press, colors }: LockArtProps) {
 
   return (
     <LockCanvas size={size}>
-      <Group opacity={opacity} origin={BASE} transform={transform}>
+      <Solid origin={BASE} transform={transform}>
         <Shackle path={shackle} color={colors.ink} />
         <Body color={colors.ink} />
-        <Keyhole color={colors.bg} open={m.open} />
-      </Group>
+        <Keyhole open={m.open} />
+      </Solid>
     </LockCanvas>
   )
 }

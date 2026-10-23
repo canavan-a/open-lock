@@ -19,6 +19,7 @@ import (
 type fakeLock struct {
 	state   door.State
 	battery int
+	current int
 	opened  int
 	closed  int
 	updates chan door.Snapshot
@@ -29,7 +30,7 @@ func (f *fakeLock) Close()            { f.closed++ }
 func (f *fakeLock) State() door.State { return f.state }
 func (f *fakeLock) Battery() int      { return f.battery }
 func (f *fakeLock) Snapshot() door.Snapshot {
-	return door.Snapshot{State: f.state.String(), Battery: f.battery}
+	return door.Snapshot{State: f.state.String(), Battery: f.battery, Current: f.current, Charging: f.current > door.ChargingMinMa}
 }
 
 func (f *fakeLock) Subscribe() (<-chan door.Snapshot, func()) {
@@ -61,14 +62,18 @@ func TestStateEndpoint(t *testing.T) {
 }
 
 func TestBatteryEndpoint(t *testing.T) {
-	lk := &fakeLock{battery: 73}
+	lk := &fakeLock{battery: 73, current: 370}
 	rec := httptest.NewRecorder()
 	testRouter(lk).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/battery", nil))
 
-	var body struct{ Battery int }
+	var body struct {
+		Battery  int
+		Current  int
+		Charging bool
+	}
 	json.Unmarshal(rec.Body.Bytes(), &body)
-	if body.Battery != 73 {
-		t.Errorf("battery = %d, want 73", body.Battery)
+	if body.Battery != 73 || body.Current != 370 || !body.Charging {
+		t.Errorf("body = %+v, want 73/370/charging", body)
 	}
 }
 

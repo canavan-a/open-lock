@@ -76,6 +76,12 @@
               description = "MQTT topic for battery level updates.";
             };
 
+            topicCurrent = lib.mkOption {
+              type = lib.types.str;
+              default = "open-lock-current";
+              description = "MQTT topic for battery current (mA, positive while charging).";
+            };
+
             pollInterval = lib.mkOption {
               type = lib.types.str;
               default = "2s";
@@ -132,6 +138,7 @@
                 TOPIC_SIGNAL = cfg.topicSignal;
                 TOPIC_STATE = cfg.topicState;
                 TOPIC_BATTERY = cfg.topicBattery;
+                TOPIC_CURRENT = cfg.topicCurrent;
                 POLL_INTERVAL = cfg.pollInterval;
                 HTTP_ADDR = cfg.httpAddr;
               } // lib.optionalAttrs (cfg.mqttUsername != null) {

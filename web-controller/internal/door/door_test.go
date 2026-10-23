@@ -111,3 +111,25 @@ func TestUnsubscribeStopsUpdates(t *testing.T) {
 	default:
 	}
 }
+
+func TestHandleCurrent(t *testing.T) {
+	tests := []struct {
+		payload      string
+		wantCurrent  int
+		wantCharging bool
+	}{
+		{"370", 370, true},
+		{"-85", -85, false},
+		{"3", 3, false}, // gauge noise at rest
+		{"garbage", 120, true},
+	}
+	for _, tc := range tests {
+		d := newTestDoor()
+		d.current = 120
+		d.handleCurrent([]byte(tc.payload))
+		s := d.Snapshot()
+		if s.Current != tc.wantCurrent || s.Charging != tc.wantCharging {
+			t.Errorf("handleCurrent(%q) => %d/%v, want %d/%v", tc.payload, s.Current, s.Charging, tc.wantCurrent, tc.wantCharging)
+		}
+	}
+}

@@ -9,6 +9,9 @@ import type { DoorState } from './client'
 export interface LockSnapshot {
   state: DoorState
   battery: number
+  // average battery current in mA, positive while charging
+  current: number
+  charging: boolean
 }
 
 const MIN_RETRY_MS = 500

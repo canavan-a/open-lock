@@ -51,8 +51,7 @@ struct SignalManager {
 		};
 
 		battery->notifier = [this](int percent, int currentMa){
-			this->publishBattery(percent);
-			if (percent != 999) this->publish(config::MqttTopicCurrent, std::to_string(currentMa).c_str(), false);
+			this->publishBattery(percent, currentMa);
 		};
 	}
 
@@ -131,7 +130,7 @@ struct SignalManager {
 				esp_mqtt_client_subscribe(self->mqtt, config::MqttTopicSignal, 1);
 				self->publish(config::MqttTopicOnline, "online", true);
 				self->publishState(self->servoManager->getState());
-				self->publishBattery(self->battery->currentPercent);
+				self->publishBattery(self->battery->currentPercent, self->battery->currentMa);
 				break;
 			case MQTT_EVENT_DISCONNECTED:
 				ESP_LOGW("signal", "mqtt disconnected");
@@ -153,7 +152,7 @@ struct SignalManager {
 		} else if (msg == "state"){
 			publishState(servoManager->getState());
 		} else if (msg == "battery"){
-			publishBattery(battery->currentPercent);
+			publishBattery(battery->currentPercent, battery->currentMa);
 		} else if (msg.rfind("angle:", 0) == 0){
 			int angle = atoi(msg.c_str() + 6);
 			if (angle ==0){
@@ -174,8 +173,11 @@ struct SignalManager {
 		publish(config::MqttTopicState, state == State::OPEN ? "open" : "closed", true);
 	}
 
-	void publishBattery(int batteryPercent){
+	// The current is retained too, so a server that restarts knows straight
+	// away whether the lock is charging.
+	void publishBattery(int batteryPercent, int currentMa){
 		publish(config::MqttTopicBattery, std::to_string(batteryPercent).c_str(), true);
+		if (batteryPercent != 999) publish(config::MqttTopicCurrent, std::to_string(currentMa).c_str(), true);
 	}
 
 };

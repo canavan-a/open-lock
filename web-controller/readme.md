@@ -22,8 +22,8 @@ has no login of its own.
 | Method | Path | Response |
 | --- | --- | --- |
 | `GET` | `/state` | `{"state":"open"\|"closed"\|"unknown"}` |
-| `GET` | `/battery` | `{"battery":<int>}` (`999` = fuel gauge unavailable) |
-| `GET` | `/ws` | WebSocket: pushes `{"state":...,"battery":...}` on connect, on every firmware report, and every 25s as a heartbeat |
+| `GET` | `/battery` | `{"battery":<int>,"current":<mA>,"charging":<bool>}` (`999` = fuel gauge unavailable; `current` is positive while charging) |
+| `GET` | `/ws` | WebSocket: pushes `{"state":...,"battery":...,"current":...,"charging":...}` on connect, on every firmware report, and every 25s as a heartbeat |
 | `POST` | `/open` | `{"sent":"open"}` |
 | `POST` | `/close` | `{"sent":"closed"}` |
 | `GET` | `/healthz` | `{"status":"ok"}` |
@@ -34,13 +34,14 @@ has no login of its own.
 Commands are published to `TOPIC_SIGNAL` (default `open-lock-signal`) as the
 payloads `open`, `closed`, `state`, `battery`. The firmware reports on
 `TOPIC_STATE` (`open`/`closed`) and `TOPIC_BATTERY` (integer percent, `999` on
-error). State is re-requested every `POLL_INTERVAL` while it is unknown.
+error) and `TOPIC_CURRENT` (average battery current in mA, positive while
+charging; `charging` is true above 10 mA). State is re-requested every `POLL_INTERVAL` while it is unknown.
 
 ## Configuration (environment)
 
 `MQTT_BROKER`, `MQTT_PORT`, `MQTT_CLIENT_ID`, `MQTT_ANON`, `MQTT_USERNAME`,
-`MQTT_PASSWORD`, `TOPIC_SIGNAL`, `TOPIC_STATE`, `TOPIC_BATTERY`, `POLL_INTERVAL`,
-`HTTP_ADDR`. See `../config.example.env`.
+`MQTT_PASSWORD`, `TOPIC_SIGNAL`, `TOPIC_STATE`, `TOPIC_BATTERY`, `TOPIC_CURRENT`,
+`POLL_INTERVAL`, `HTTP_ADDR`. See `../config.example.env`.
 
 ## Build
 

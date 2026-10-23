@@ -19,8 +19,8 @@ It talks to the web-controller's HTTP API (`/state`, `/battery`, `/open`,
   firmware just re-reports the state it's already in). **Settings → Manual
   control** sends a specific unlock or lock to recover.
 - **Settings → Lock animation** picks how the lock (drawn like the app
-  icon) animates, each with a live preview: Classic (default), Jell-O, Gummy,
-  Liquid. Saved the moment it's picked.
+  icon) animates, each with a live preview: Classic (default), 3D, Pixels,
+  Liquid, Key, Magnet, Flip, Gummy. Saved the moment it's picked.
 
 ## Stack
 

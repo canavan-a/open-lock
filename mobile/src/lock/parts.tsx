@@ -1,7 +1,7 @@
-import { Canvas, Group, Path, Rect, type SkPath, vec } from '@shopify/react-native-skia'
+import { Canvas, Group, Paint, Path, Rect, type SkPath, vec } from '@shopify/react-native-skia'
 import React from 'react'
 import { type SharedValue, useDerivedValue } from 'react-native-reanimated'
-import { BODY, BODY_BOTTOM, BODY_CENTER_X, BOX, KEYHOLE, keyholeTransform, SHACKLE_WIDTH } from './geometry'
+import { BODY, BODY_BOTTOM, BODY_CENTER_X, BOX, KEYHOLE, keyholeTransform, SHACKLE_WIDTH, shacklePath } from './geometry'
 
 // The lock's 100-unit box takes up the middle of the canvas, leaving a small
 // margin on every side for the pending ring, hops and overshoot.
@@ -51,8 +51,40 @@ export function Body({ color, opacity }: { color: string; opacity?: Animatable<n
   return <Rect x={BODY.x} y={BODY.y} width={BODY.w} height={BODY.h} color={color} opacity={opacity} />
 }
 
-// Drawn in the background color over the body, standing in for the icon's cutout.
-export function Keyhole({ color, open }: { color: string; open: SharedValue<number> }) {
+// Draws its children as one flat layer that fades as a whole, so the parts
+// that overlap (the shackle legs seated in the body) never show through each
+// other, and a cutout Keyhole punches a real hole like the icon's.
+export function Solid({
+  opacity,
+  ...group
+}: { opacity?: Animatable<number> } & Omit<React.ComponentProps<typeof Group>, 'layer' | 'opacity'>) {
+  return <Group layer={<Paint opacity={opacity} />} {...group} />
+}
+
+// The whole icon at a pose (0 closed .. 1 open), as one solid piece with a
+// real keyhole.
+export function IconLock({
+  open,
+  color,
+  ...group
+}: {
+  open: SharedValue<number>
+  color: string
+} & Omit<React.ComponentProps<typeof Group>, 'layer' | 'opacity' | 'children'>) {
+  const shackle = useDerivedValue(() => shacklePath(open.value))
+  return (
+    <Group {...group}>
+      <Solid>
+        <Shackle path={shackle} color={color} />
+        <Body color={color} />
+        <Keyhole open={open} />
+      </Solid>
+    </Group>
+  )
+}
+
+// With no color it's a cutout (only inside a Solid); with one it's painted on.
+export function Keyhole({ color, open }: { color?: string; open: SharedValue<number> }) {
   const transform = useDerivedValue(() => keyholeTransform(open.value))
   return (
     <Rect
@@ -60,7 +92,8 @@ export function Keyhole({ color, open }: { color: string; open: SharedValue<numb
       y={KEYHOLE.cy - KEYHOLE.h / 2}
       width={KEYHOLE.w}
       height={KEYHOLE.h}
-      color={color}
+      color={color ?? 'black'}
+      blendMode={color ? undefined : 'dstOut'}
       origin={vec(KEYHOLE.cx, KEYHOLE.cy)}
       transform={transform}
     />

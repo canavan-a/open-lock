@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Closed padlock, ported from web-controller/ui/public/icon.svg. Drawn in
-     the 16x16 source space and scaled to 3.2 (51dp) so the body's corners stay
-     inside the adaptive icon's 66dp safe zone. -->
+     the 16x16 source space and scaled to 2.9 (46dp tall), about the size of
+     the Super Badger / Super Chat glyphs. The body outweighs the shackle, so
+     the lock sits 1 unit above its box's center to look centered. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <group
-        android:translateX="28.4"
-        android:translateY="28.4"
-        android:scaleX="3.2"
-        android:scaleY="3.2">
+        android:translateX="30.8"
+        android:translateY="27.9"
+        android:scaleX="2.9"
+        android:scaleY="2.9">
         <path
             android:fillColor="#ffffff"
             android:fillType="evenOdd"

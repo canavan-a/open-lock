@@ -35,9 +35,12 @@ export interface LockArtProps {
 // the lock feels snappy rather than floaty.
 export const GUMMY: WithSpringConfig = { damping: 14, stiffness: 420, mass: 1 }
 export const BOUNCY: WithSpringConfig = { damping: 9, stiffness: 400, mass: 1 }
+// The jump to the halfway pose on tap: near-critical and very stiff, ~100ms.
+export const SNAP: WithSpringConfig = { damping: 70, stiffness: 2200, mass: 1 }
 
 // A decaying wobble around 0, kicked by giving a spring at rest some velocity.
 export function kick(v: SharedValue<number>, velocity: number, config: WithSpringConfig = BOUNCY) {
+  'worklet'
   v.value = withSpring(0, { ...config, velocity })
 }
 
@@ -66,9 +69,9 @@ export function useLockMotion(
     // animations that run their own transition (e.g. pop out, swap, pop in)
     // drive `open` themselves
     manualOpen?: boolean
-    // how far (0..1) to start moving towards the other state the moment a
-    // command is sent, so a tap gets an instant response; the rest of the
-    // move plays when the firmware confirms, or it springs back on failure
+    // how far (0..1) to jump towards the other state the moment a command is
+    // sent (default halfway), so a tap gets an instant response; the rest of
+    // the move plays when the firmware confirms, or it springs back on failure
     anticipate?: number
   } = {},
 ): LockMotion {
@@ -98,11 +101,11 @@ export function useLockMotion(
 
   useEffect(() => {
     pending.value = withTiming(phase === 'pending' ? 1 : 0, { duration: 120 })
-    const { anticipate, manualOpen, spring } = optsRef.current
+    const { anticipate = 0.5, manualOpen, spring } = optsRef.current
     if (anticipate && !manualOpen && state !== 'unknown') {
       if (phase === 'pending') {
         anticipating.current = true
-        open.value = withSpring(target + (target ? -anticipate : anticipate), spring ?? GUMMY)
+        open.value = withSpring(target + (target ? -anticipate : anticipate), SNAP)
       } else if (anticipating.current) {
         // no state change came (failed or timed out): settle back
         anticipating.current = false
@@ -135,7 +138,12 @@ export function useBaseTransform(m: LockMotion, press: SharedValue<number>) {
   ])
 }
 
-// Dim while the state is unknown.
-export function useKnownOpacity(m: LockMotion) {
-  return useDerivedValue(() => 0.3 + 0.7 * m.known.value)
+// 1 while the lock is at rest in one of the two poses, else 0. Animations
+// that break the icon apart draw the plain icon while settled, so no seams or
+// pieces ever show at rest.
+export function useSettled(m: LockMotion) {
+  return useDerivedValue((): number => {
+    const t = m.open.value
+    return Math.min(Math.abs(t), Math.abs(1 - t)) < 0.004 && m.pending.value < 0.01 ? 1 : 0
+  })
 }

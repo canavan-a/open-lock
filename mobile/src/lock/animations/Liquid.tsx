@@ -1,104 +1,138 @@
-import { Circle, Group, Path, Rect, Skia } from '@shopify/react-native-skia'
-import React, { useMemo } from 'react'
-import { type SharedValue, useDerivedValue, useSharedValue } from 'react-native-reanimated'
-import { BODY, BODY_BOTTOM, bodyPath, SHACKLE_WIDTH, shacklePath } from '../geometry'
+import { Blur, Circle, ColorMatrix, Group, Paint, Path, Skia } from '@shopify/react-native-skia'
+import React from 'react'
 import {
-  kick,
-  type LockArtProps,
-  type LockMotion,
-  useBaseTransform,
-  useKnownOpacity,
-  useLockMotion,
-} from '../motion'
-import { BASE, Keyhole, LockCanvas, Shackle } from '../parts'
+  Easing,
+  type SharedValue,
+  useAnimatedReaction,
+  useDerivedValue,
+  useSharedValue,
+  withSpring,
+  withTiming,
+  type WithSpringConfig,
+} from 'react-native-reanimated'
+import { BODY, BODY_BOTTOM, ix, iy, shacklePath } from '../geometry'
+import { kick, type LockArtProps, type LockMotion, useBaseTransform, useLockMotion } from '../motion'
+import { BASE, Keyhole, LockCanvas, Shackle, Solid } from '../parts'
 
-// fraction of the body filled when locked / unlocked
-const FULL = 0.86
-const LOW = 0.2
+const SPRING: WithSpringConfig = { damping: 18, stiffness: 320, mass: 1 }
+// a water drop's wobble: quick, with a few visible rings
+const WOBBLE: WithSpringConfig = { damping: 6, stiffness: 280, mass: 1 }
 
-function surfaceY(m: LockMotion) {
+// Blur then a hard alpha threshold: anything close enough melts together and
+// every edge goes round, which is what makes separate shapes read as one liquid.
+const GOO = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 18, -7]
+// at rest it holds the icon's shape with just-softened corners; moving, it runs
+const BLUR_REST = 0.9
+const BLUR_FLOWING = 2.8
+
+// The body as a drop of liquid sitting on the floor: it squashes and bulges
+// with `wobble` and its top ripples.
+function bodyBlob(wobble: number, ripple: number, t: number) {
   'worklet'
-  const open = Math.min(1.15, Math.max(-0.15, m.open.value))
-  const level = FULL + (LOW - FULL) * open
-  return BODY_BOTTOM - level * BODY.h
-}
-
-function wave(m: LockMotion, slosh: SharedValue<number>, phase: number, speed: number) {
-  'worklet'
-  const t = m.clock.value / 1000
-  const y0 = surfaceY(m)
-  const amp = 1.3 + 3.5 * m.pending.value + Math.abs(slosh.value) * 1.2
+  const left = BODY.x
+  const right = BODY.x + BODY.w
+  const top = BODY.y + wobble * 3
+  const h = BODY_BOTTOM - top
+  const bulge = (y: number) => wobble * 2.4 * Math.sin((Math.PI * (y - top)) / h)
   const p = Skia.Path.Make()
-  const left = BODY.x - 2
-  const right = BODY.x + BODY.w + 2
-  p.moveTo(left, BODY_BOTTOM + 2)
+  p.moveTo(left - bulge(BODY_BOTTOM), BODY_BOTTOM)
+  for (let y = BODY_BOTTOM; y >= top; y -= 3) p.lineTo(left - bulge(y), y)
   for (let x = left; x <= right; x += 2) {
-    const y = y0 + Math.sin(x * 0.15 + t * speed + phase) * amp + slosh.value * (x - 50) * 0.32
-    p.lineTo(x, y)
+    p.lineTo(x, top + Math.sin(x * 0.25 + t * 7) * ripple)
   }
-  p.lineTo(right, BODY_BOTTOM + 2)
+  for (let y = top; y <= BODY_BOTTOM; y += 3) p.lineTo(right + bulge(y), y)
   p.close()
   return p
 }
 
-function Bubble({ m, i, color }: { m: LockMotion; i: number; color: string }) {
-  const cy = useDerivedValue(() => {
-    const t = m.clock.value / 1000
-    const f = (t * 0.7 + i / 3) % 1
-    return BODY_BOTTOM - 3 - f * (BODY_BOTTOM - surfaceY(m) - 4)
+// A droplet flicked off the shackle as it swings, falling back into the body.
+function Drop({ drop, toOpen, color }: { drop: SharedValue<number>; toOpen: SharedValue<boolean>; color: string }) {
+  const cx = useDerivedValue(() => {
+    const from = toOpen.value ? ix(15) : ix(11)
+    const to = toOpen.value ? ix(12.5) : ix(9.5)
+    return from + (to - from) * drop.value
   })
-  const cx = useDerivedValue(() => 33 + i * 17 + Math.sin(m.clock.value / 250 + i) * 2)
-  const opacity = useDerivedValue(() => 0.6 * m.pending.value)
-  return <Circle cx={cx} cy={cy} r={2.2 + (i % 2)} color={color} opacity={opacity} />
+  const cy = useDerivedValue(() => {
+    const d = drop.value
+    return iy(4.5) - Math.sin(Math.PI * d) * 9 + d * d * (BODY.y + 2 - iy(4.5))
+  })
+  // gone at both ends: at the start it's still part of the shackle, at the
+  // end it has merged into the body
+  const r = useDerivedValue(() => 3.4 * Math.sin(Math.PI * Math.min(1, drop.value * 1.1)))
+  return <Circle cx={cx} cy={cy} r={r} color={color} />
 }
 
-// The body is a glass that's full when locked. Unlocking drains it, locking
-// fills it back up; it sloshes when the level changes and churns with rising
-// bubbles while waiting.
+// Blobs that swell out of the top of the body and sink back, while waiting.
+function Boil({ m, i, color }: { m: LockMotion; i: number; color: string }) {
+  const x = [41, 50, 59][i]
+  const cy = useDerivedValue(
+    () => BODY.y + 1 - (0.5 + 0.5 * Math.sin(m.clock.value / 140 + i * 2.1)) * 6 * m.pending.value,
+  )
+  const r = useDerivedValue(() => 3.6 * m.pending.value)
+  return <Circle cx={x} cy={cy} r={r} color={color} />
+}
+
+// The lock itself is liquid. It holds the icon's shape at rest, then runs as
+// it moves: the shackle stays joined to the body by a stretching strand, a
+// drop flicks off and splashes back in, and the body wobbles like a water drop.
+// While waiting it bubbles at the top.
 export function Liquid({ size, state, phase, press, colors }: LockArtProps) {
-  const slosh = useSharedValue(0)
+  const wobble = useSharedValue(0)
+  const drop = useSharedValue(0)
+  const dropToOpen = useSharedValue(true)
   const m = useLockMotion(state, phase, {
-    spring: { damping: 20, stiffness: 260, mass: 1 },
-    onChange: (toOpen) => kick(slosh, toOpen ? 2 : -2, { damping: 6, stiffness: 240, mass: 1 }),
-    onFail: () => kick(slosh, 2.4, { damping: 6, stiffness: 300, mass: 1 }),
+    spring: SPRING,
+    onChange: (toOpen) => {
+      dropToOpen.value = toOpen
+      kick(wobble, 7, WOBBLE)
+      drop.value = 0
+      drop.value = withTiming(1, { duration: 460, easing: Easing.linear })
+    },
+    onFail: () => kick(wobble, -8, WOBBLE),
   })
-  const opacity = useKnownOpacity(m)
   const base = useBaseTransform(m, press)
-  const clip = useMemo(() => bodyPath(), [])
+
+  // letting go of the lock sets it rippling
+  useAnimatedReaction(
+    () => press.value > 0.5,
+    (down, wasDown) => {
+      if (wasDown && !down) wobble.value = withSpring(0, { ...WOBBLE, velocity: 5 })
+    },
+  )
 
   const shackle = useDerivedValue(() => shacklePath(m.open.value))
-  const back = useDerivedValue(() => wave(m, slosh, 2.2, -2.4))
-  const front = useDerivedValue(() => wave(m, slosh, 0, 3.1))
+  const body = useDerivedValue(() => {
+    const t = m.clock.value / 1000
+    const ripple = 0.4 + 1.6 * m.pending.value + Math.abs(wobble.value) * 0.6
+    return bodyBlob(wobble.value, ripple, t)
+  })
+  const blur = useDerivedValue(() => {
+    const t = Math.min(1, Math.max(0, m.open.value))
+    const swinging = 4 * t * (1 - t)
+    const flow = Math.min(1, swinging + m.pending.value + Math.abs(wobble.value) * 0.5)
+    return BLUR_REST + (BLUR_FLOWING - BLUR_REST) * flow
+  })
 
   return (
     <LockCanvas size={size}>
-      <Group opacity={opacity} origin={BASE} transform={base}>
-        <Shackle path={shackle} color={colors.ink} />
-        <Rect
-          x={BODY.x}
-          y={BODY.y}
-          width={BODY.w}
-          height={BODY.h}
-          color={colors.bg}
-        />
-        <Group clip={clip}>
-          <Path path={back} color={colors.accent} opacity={0.45} />
-          <Path path={front} color={colors.accent} opacity={0.9} />
+      <Solid origin={BASE} transform={base}>
+        <Group
+          layer={
+            <Paint>
+              <Blur blur={blur} />
+              <ColorMatrix matrix={GOO} />
+            </Paint>
+          }
+        >
+          <Shackle path={shackle} color={colors.ink} />
+          <Path path={body} color={colors.ink} />
+          <Drop drop={drop} toOpen={dropToOpen} color={colors.ink} />
           {[0, 1, 2].map((i) => (
-            <Bubble key={i} m={m} i={i} color="white" />
+            <Boil key={i} m={m} i={i} color={colors.ink} />
           ))}
         </Group>
-        <Rect
-          x={BODY.x}
-          y={BODY.y}
-          width={BODY.w}
-          height={BODY.h}
-          color={colors.ink}
-          style="stroke"
-          strokeWidth={SHACKLE_WIDTH / 2}
-        />
-        <Keyhole color={colors.ink} open={m.open} />
-      </Group>
+        <Keyhole open={m.open} />
+      </Solid>
     </LockCanvas>
   )
 }

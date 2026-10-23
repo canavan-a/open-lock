@@ -16,6 +16,7 @@ type Config struct {
 	TopicSignal  string
 	TopicState   string
 	TopicBattery string
+	TopicCurrent string
 	ClientID     string
 	Anon         bool
 	Username     string
@@ -36,6 +37,7 @@ func Default() Config {
 		TopicSignal:  "open-lock-signal",
 		TopicState:   "open-lock-state",
 		TopicBattery: "open-lock-battery",
+		TopicCurrent: "open-lock-current",
 		ClientID:     "web-controller",
 		Anon:         true,
 		PollInterval: 2 * time.Second,
@@ -63,6 +65,9 @@ func FromEnv() Config {
 	}
 	if v := os.Getenv("TOPIC_BATTERY"); v != "" {
 		c.TopicBattery = v
+	}
+	if v := os.Getenv("TOPIC_CURRENT"); v != "" {
+		c.TopicCurrent = v
 	}
 	if v := os.Getenv("MQTT_CLIENT_ID"); v != "" {
 		c.ClientID = v

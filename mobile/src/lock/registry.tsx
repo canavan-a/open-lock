@@ -1,25 +1,33 @@
 import React, { useSyncExternalStore } from 'react'
 import { getConfig, subscribeConfig } from '../lib/config'
 import { Classic } from './animations/Classic'
+import { Flip } from './animations/Flip'
 import { Gummy } from './animations/Gummy'
-import { Jello } from './animations/Jello'
+import { KeyTurn } from './animations/KeyTurn'
 import { Liquid } from './animations/Liquid'
+import { Magnet } from './animations/Magnet'
+import { Pixels } from './animations/Pixels'
+import { Spin3D } from './animations/Spin3D'
 import type { LockAnimationId } from './ids'
 import type { LockArtProps } from './motion'
 
 export type { LockAnimationId } from './ids'
 export { DEFAULT_LOCK_ANIMATION } from './ids'
 
+// What each one does is described on its component.
 export const LOCK_ANIMATIONS: {
   id: LockAnimationId
   label: string
-  blurb: string
   Component: React.ComponentType<LockArtProps>
 }[] = [
-  { id: 'classic', label: 'Classic', blurb: 'The icon: shackle swings, keyhole turns', Component: Classic },
-  { id: 'jello', label: 'Jell-O', blurb: 'Sways and wobbles from its base', Component: Jello },
-  { id: 'gummy', label: 'Gummy', blurb: 'Hops and lands with a squish', Component: Gummy },
-  { id: 'liquid', label: 'Liquid', blurb: 'Drains to unlock, fills to lock', Component: Liquid },
+  { id: 'classic', label: 'Classic', Component: Classic },
+  { id: 'spin3d', label: '3D', Component: Spin3D },
+  { id: 'pixels', label: 'Pixels', Component: Pixels },
+  { id: 'liquid', label: 'Liquid', Component: Liquid },
+  { id: 'key', label: 'Key', Component: KeyTurn },
+  { id: 'magnet', label: 'Magnet', Component: Magnet },
+  { id: 'flip', label: 'Flip', Component: Flip },
+  { id: 'gummy', label: 'Gummy', Component: Gummy },
 ]
 
 export function LockArt({ animation, ...props }: LockArtProps & { animation: LockAnimationId }) {

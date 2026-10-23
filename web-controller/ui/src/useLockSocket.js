@@ -7,7 +7,7 @@ const MAX_RETRY_MS = 10000;
 // replaced.
 const STALE_MS = 60000;
 
-// Live lock snapshots ({state, battery}) pushed over /ws. Reconnects with
+// Live lock snapshots ({state, battery, current, charging}) pushed over /ws. Reconnects with
 // exponential backoff, and immediately when the tab becomes visible or the
 // browser comes back online. Returns whether the socket is currently open so
 // the caller can fall back to polling while it isn't.

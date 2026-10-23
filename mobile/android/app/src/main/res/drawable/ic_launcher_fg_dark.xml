@@ -1,22 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The ic_launcher_foreground padlock, recolored for the dark theme (colors in
-     values/ic_launcher_themes.xml). The keyhole is filled with the accent. -->
+<!-- The ic_launcher_foreground padlock, recolored for the dark theme (color in
+     values/ic_launcher_themes.xml). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <group
-        android:translateX="28.4"
-        android:translateY="28.4"
-        android:scaleX="3.2"
-        android:scaleY="3.2">
+        android:translateX="30.8"
+        android:translateY="27.9"
+        android:scaleX="2.9"
+        android:scaleY="2.9">
         <path
             android:fillColor="@color/ic_lock_dark"
             android:fillType="evenOdd"
             android:pathData="M4,6V4C4,1.79086 5.79086,0 8,0C10.2091,0 12,1.79086 12,4V6H14V16H2V6H4ZM6,4C6,2.89543 6.89543,2 8,2C9.10457,2 10,2.89543 10,4V6H6V4ZM7,13V9H9V13H7Z" />
-        <path
-            android:fillColor="@color/ic_key_dark"
-            android:pathData="M7,13V9H9V13H7Z" />
     </group>
 </vector>

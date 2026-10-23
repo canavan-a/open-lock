@@ -8,10 +8,17 @@ import { Skia, type SkPath } from '@shopify/react-native-skia'
 
 export const BOX = 100
 
-const K = 5.5
+export const K = 5.5
 // icon x=8 (the closed body's centre) lands on x=50; icon y=0 on y=6
-const ix = (u: number) => 50 + (u - 8) * K
-const iy = (u: number) => 6 + u * K
+// (worklets: shacklePath calls them on the UI thread)
+export const ix = (u: number) => {
+  'worklet'
+  return 50 + (u - 8) * K
+}
+export const iy = (u: number) => {
+  'worklet'
+  return 6 + u * K
+}
 
 // square-cornered, icon x 2..14, y 6..16
 export const BODY = { x: ix(2), y: iy(6), w: 12 * K, h: 10 * K }
@@ -46,21 +53,38 @@ const smooth = (t: number) => {
   return t * t * (3 - 2 * t)
 }
 
-// open: 0 = closed pose, 1 = open pose. Sprung values past either end overshoot
-// a little (further right when opening, pushed down into the body when closing).
-// stretch lifts only the arc, lengthening the legs.
-export function shacklePath(open: number, stretch = 0): SkPath {
+function swingOf(t: number) {
+  'worklet'
+  // pull the right leg out first, then swing across
+  return t > 1 ? 1 + (t - 1) * 0.6 : smooth(clamp((t - 0.25) / 0.75, 0, 1))
+}
+
+function liftOf(t: number) {
+  'worklet'
+  return Math.sin(Math.PI * clamp(t, 0, 1)) * LIFT + Math.min(0, t) * 2
+}
+
+// The shackle's centre line at a pose, in icon units: left leg x, arc radius
+// and centre y, where the right leg ends, and how far it's lifted.
+export function shacklePose(open: number) {
   'worklet'
   const t = clamp(open, -0.2, 1.2)
-  const inside = clamp(t, 0, 1)
-  // pull the right leg out first, then swing across
-  const swing = t > 1 ? 1 + (t - 1) * 0.6 : smooth(clamp((t - 0.25) / 0.75, 0, 1))
-  const lift = Math.sin(Math.PI * inside) * LIFT + Math.min(0, t) * 2
-  const left = lerp(CLOSED.left, OPEN.left, swing)
-  const r = lerp(CLOSED.r, OPEN.r, swing)
-  const cy = lerp(CLOSED.cy, OPEN.cy, swing) - lift - stretch / K
-  const rightBottom = lerp(SEATED, STUB, smooth(clamp(t * 2.5, 0, 1))) - lift
+  const swing = swingOf(t)
+  const lift = liftOf(t)
+  return {
+    left: lerp(CLOSED.left, OPEN.left, swing),
+    r: lerp(CLOSED.r, OPEN.r, swing),
+    cy: lerp(CLOSED.cy, OPEN.cy, swing) - lift,
+    rightBottom: lerp(SEATED, STUB, smooth(clamp(t * 2.5, 0, 1))) - lift,
+    lift,
+  }
+}
 
+// open: 0 = closed pose, 1 = open pose. Sprung values past either end overshoot
+// a little (further right when opening, pushed down into the body when closing).
+export function shacklePath(open: number): SkPath {
+  'worklet'
+  const { left, r, cy, rightBottom } = shacklePose(open)
   const p = Skia.Path.Make()
   // the left leg never leaves the body, so it just gets longer as the arc lifts
   p.moveTo(ix(left), iy(SEATED))

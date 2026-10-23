@@ -62,7 +62,7 @@ export const getState = (c?: LockConfig) =>
   request<{ state: DoorState }>('/state', undefined, c)
 
 export const getBattery = (c?: LockConfig) =>
-  request<{ battery: number }>('/battery', undefined, c)
+  request<{ battery: number; current: number; charging: boolean }>('/battery', undefined, c)
 
 export const openLock = () => request<{ sent: string }>('/open', { method: 'POST' })
 
