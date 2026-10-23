@@ -1,11 +1,11 @@
-import { Canvas, Group, Path, RoundedRect, type SkPath, vec } from '@shopify/react-native-skia'
-import React, { useMemo } from 'react'
-import type { SharedValue } from 'react-native-reanimated'
-import { BODY, BODY_BOTTOM, BODY_CENTER_X, BOX, keyholePath, SHACKLE_WIDTH } from './geometry'
+import { Canvas, Group, Path, Rect, type SkPath, vec } from '@shopify/react-native-skia'
+import React from 'react'
+import { type SharedValue, useDerivedValue } from 'react-native-reanimated'
+import { BODY, BODY_BOTTOM, BODY_CENTER_X, BOX, KEYHOLE, keyholeTransform, SHACKLE_WIDTH } from './geometry'
 
-// The lock's 100-unit box takes up the middle of the canvas, leaving a margin
-// on every side for effects that fly outside it (particles, ripples, drips).
-const CANVAS_UNITS = 160
+// The lock's 100-unit box takes up the middle of the canvas, leaving a small
+// margin on every side for the pending ring, hops and overshoot.
+const CANVAS_UNITS = 125
 
 export function LockCanvas({ size, children }: { size: number; children: React.ReactNode }) {
   const s = size / CANVAS_UNITS
@@ -23,6 +23,7 @@ export const BASE = vec(BODY_CENTER_X, BODY_BOTTOM)
 
 type Animatable<T> = T | SharedValue<T>
 
+// Square-ended, like the icon's legs.
 export function Shackle({
   path,
   color,
@@ -39,7 +40,7 @@ export function Shackle({
       path={path}
       style="stroke"
       strokeWidth={width}
-      strokeCap="round"
+      strokeCap="butt"
       color={color}
       opacity={opacity}
     />
@@ -47,35 +48,21 @@ export function Shackle({
 }
 
 export function Body({ color, opacity }: { color: string; opacity?: Animatable<number> }) {
+  return <Rect x={BODY.x} y={BODY.y} width={BODY.w} height={BODY.h} color={color} opacity={opacity} />
+}
+
+// Drawn in the background color over the body, standing in for the icon's cutout.
+export function Keyhole({ color, open }: { color: string; open: SharedValue<number> }) {
+  const transform = useDerivedValue(() => keyholeTransform(open.value))
   return (
-    <RoundedRect
-      x={BODY.x}
-      y={BODY.y}
-      width={BODY.w}
-      height={BODY.h}
-      r={BODY.r}
+    <Rect
+      x={KEYHOLE.cx - KEYHOLE.w / 2}
+      y={KEYHOLE.cy - KEYHOLE.h / 2}
+      width={KEYHOLE.w}
+      height={KEYHOLE.h}
       color={color}
-      opacity={opacity}
+      origin={vec(KEYHOLE.cx, KEYHOLE.cy)}
+      transform={transform}
     />
   )
-}
-
-// A soft highlight across the top of the body: makes it read as glossy candy.
-export function Gloss({ opacity = 0.28 }: { opacity?: number }) {
-  return (
-    <RoundedRect
-      x={BODY.x + 7}
-      y={BODY.y + 5}
-      width={BODY.w * 0.42}
-      height={7}
-      r={3.5}
-      color="white"
-      opacity={opacity}
-    />
-  )
-}
-
-export function Keyhole({ color }: { color: string }) {
-  const path = useMemo(() => keyholePath(), [])
-  return <Path path={path} color={color} />
 }

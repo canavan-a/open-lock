@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { DEFAULT_LOCK_ANIMATION, type LockAnimationId } from '../lock/ids'
+import { DEFAULT_LOCK_ANIMATION, isLockAnimationId, type LockAnimationId } from '../lock/ids'
 import type { ThemeName } from '../theme'
 
 // The app has no window.location to inherit an origin from, so the connection
@@ -65,6 +65,7 @@ export async function loadConfig(): Promise<LockConfig> {
     const raw = await AsyncStorage.getItem(KEY)
     if (raw) {
       cache = { ...DEFAULT_CONFIG, ...(JSON.parse(raw) as Partial<LockConfig>) }
+      if (!isLockAnimationId(cache.lockAnimation)) cache.lockAnimation = DEFAULT_LOCK_ANIMATION
       notify()
     }
   } catch {

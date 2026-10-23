@@ -1,58 +1,89 @@
 import { Skia, type SkPath } from '@shopify/react-native-skia'
 
-// The padlock, drawn in a 100×100 box that every animation scales to its
-// canvas. Split into body, shackle and keyhole so each part can move on its own.
+// The padlock from the app icon (web-controller/ui/public/icon.svg and the
+// old OPEN_PATH / CLOSED_PATH glyphs), drawn in a 100×100 box that every
+// animation scales to its canvas. The icon's 16-unit grid maps onto that box
+// at K per unit; the body stays put and the shackle and keyhole move between
+// the icon's closed and open poses.
 
 export const BOX = 100
 
-export const BODY = { x: 18, y: 44, w: 64, h: 46, r: 13 }
+const K = 5.5
+// icon x=8 (the closed body's centre) lands on x=50; icon y=0 on y=6
+const ix = (u: number) => 50 + (u - 8) * K
+const iy = (u: number) => 6 + u * K
+
+// square-cornered, icon x 2..14, y 6..16
+export const BODY = { x: ix(2), y: iy(6), w: 12 * K, h: 10 * K }
 export const BODY_BOTTOM = BODY.y + BODY.h
 export const BODY_CENTER_X = BODY.x + BODY.w / 2
 
-export const SHACKLE_WIDTH = 10
-const LEFT_X = 31
-const RIGHT_X = 69
-const RADIUS = (RIGHT_X - LEFT_X) / 2
-// y of the arc's centre line where it meets the legs, when closed
-const ARC_Y = 30
-// The left leg is longer so it stays seated in the body when open, like a real
-// padlock; the right leg pops clear.
-const LEFT_BOTTOM = 64
-const RIGHT_BOTTOM = 52
-// how far the shackle rises when fully open
-export const OPEN_RISE = 15
+export const SHACKLE_WIDTH = 2 * K
 
-export const KEYHOLE = { cx: 50, cy: 63, r: 6, slotW: 5, slotH: 13 }
+// Shackle centre lines, in icon units. Closed: legs at x 5 and 11 on an arc
+// of radius 3 centred at y 4, both seated in the body. Open (OPEN_PATH, with
+// its body shifted back under ours): the left leg moves to x 10 and stays
+// seated, the arc tightens to radius 2.5, and the right leg is a stub at y 4
+// hanging off the body's right edge.
+const CLOSED = { left: 5, r: 3, cy: 4 }
+const OPEN = { left: 10, r: 2.5, cy: 3.5 }
+// legs run a unit into the body so the joint never shows
+const SEATED = 7
+const STUB = 4
+// how high the shackle lifts mid-swing so the right leg clears the body
+const LIFT = 1.6
 
-// rise lifts the whole shackle; stretch lifts only the arc, so the legs get
-// longer (taffy) or shorter (negative, squashed).
-export function shacklePath(rise: number, stretch = 0): SkPath {
+const clamp = (v: number, lo: number, hi: number) => {
   'worklet'
-  const top = ARC_Y - rise - stretch
+  return Math.min(hi, Math.max(lo, v))
+}
+const lerp = (a: number, b: number, t: number) => {
+  'worklet'
+  return a + (b - a) * t
+}
+const smooth = (t: number) => {
+  'worklet'
+  return t * t * (3 - 2 * t)
+}
+
+// open: 0 = closed pose, 1 = open pose. Sprung values past either end overshoot
+// a little (further right when opening, pushed down into the body when closing).
+// stretch lifts only the arc, lengthening the legs.
+export function shacklePath(open: number, stretch = 0): SkPath {
+  'worklet'
+  const t = clamp(open, -0.2, 1.2)
+  const inside = clamp(t, 0, 1)
+  // pull the right leg out first, then swing across
+  const swing = t > 1 ? 1 + (t - 1) * 0.6 : smooth(clamp((t - 0.25) / 0.75, 0, 1))
+  const lift = Math.sin(Math.PI * inside) * LIFT + Math.min(0, t) * 2
+  const left = lerp(CLOSED.left, OPEN.left, swing)
+  const r = lerp(CLOSED.r, OPEN.r, swing)
+  const cy = lerp(CLOSED.cy, OPEN.cy, swing) - lift - stretch / K
+  const rightBottom = lerp(SEATED, STUB, smooth(clamp(t * 2.5, 0, 1))) - lift
+
   const p = Skia.Path.Make()
-  p.moveTo(LEFT_X, LEFT_BOTTOM - rise)
-  p.lineTo(LEFT_X, top)
-  p.arcToOval(Skia.XYWHRect(LEFT_X, top - RADIUS, RADIUS * 2, RADIUS * 2), 180, 180, false)
-  p.lineTo(RIGHT_X, RIGHT_BOTTOM - rise)
+  // the left leg never leaves the body, so it just gets longer as the arc lifts
+  p.moveTo(ix(left), iy(SEATED))
+  p.lineTo(ix(left), iy(cy))
+  p.arcToOval(Skia.XYWHRect(ix(left), iy(cy - r), r * 2 * K, r * 2 * K), 180, 180, false)
+  p.lineTo(ix(left + r * 2), iy(Math.max(rightBottom, cy)))
   return p
 }
 
 export function bodyPath(): SkPath {
   'worklet'
   const p = Skia.Path.Make()
-  p.addRRect(Skia.RRectXY(Skia.XYWHRect(BODY.x, BODY.y, BODY.w, BODY.h), BODY.r, BODY.r))
+  p.addRect(Skia.XYWHRect(BODY.x, BODY.y, BODY.w, BODY.h))
   return p
 }
 
-export function keyholePath(): SkPath {
+// The keyhole is the icon's slot: 2×4 upright when closed, turned a quarter
+// to lie flat when open (both centred on icon (8, 11)).
+export const KEYHOLE = { cx: ix(8), cy: iy(11), w: 2 * K, h: 4 * K }
+
+export function keyholeTransform(open: number) {
   'worklet'
-  const k = KEYHOLE
-  const p = Skia.Path.Make()
-  p.addCircle(k.cx, k.cy, k.r)
-  p.addRRect(
-    Skia.RRectXY(Skia.XYWHRect(k.cx - k.slotW / 2, k.cy, k.slotW, k.slotH), k.slotW / 2, k.slotW / 2),
-  )
-  return p
+  return [{ rotate: (clamp(open, 0, 1) * Math.PI) / 2 }]
 }
 
 // Small deterministic pseudo-random in [0, 1), so particle layouts are stable

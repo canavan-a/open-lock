@@ -1,9 +1,9 @@
 import { Group } from '@shopify/react-native-skia'
 import React from 'react'
 import { Easing, useDerivedValue, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated'
-import { OPEN_RISE, shacklePath } from '../geometry'
+import { shacklePath } from '../geometry'
 import { BOUNCY, kick, type LockArtProps, useKnownOpacity, useLockMotion } from '../motion'
-import { BASE, Body, Gloss, Keyhole, LockCanvas, Shackle } from '../parts'
+import { BASE, Body, Keyhole, LockCanvas, Shackle } from '../parts'
 
 // A gummy candy that hops, lands with a squash, and boings its shackle.
 // Hops in place while waiting.
@@ -14,17 +14,17 @@ export function Gummy({ size, state, phase, press, colors }: LockArtProps) {
     spring: BOUNCY,
     onChange: () => {
       hop.value = withSequence(
-        withTiming(-18, { duration: 170, easing: Easing.out(Easing.quad) }),
-        withTiming(0, { duration: 170, easing: Easing.in(Easing.quad) }, () => {
+        withTiming(-18, { duration: 110, easing: Easing.out(Easing.quad) }),
+        withTiming(0, { duration: 110, easing: Easing.in(Easing.quad) }, () => {
           'worklet'
-          squash.value = withSpring(0, { ...BOUNCY, velocity: 7 })
+          squash.value = withSpring(0, { ...BOUNCY, velocity: 10 })
         }),
       )
     },
-    onFail: () => kick(squash, -5),
+    onFail: () => kick(squash, -7),
   })
   const opacity = useKnownOpacity(m)
-  const shackle = useDerivedValue(() => shacklePath(m.open.value * OPEN_RISE))
+  const shackle = useDerivedValue(() => shacklePath(m.open.value))
 
   const transform = useDerivedValue(() => {
     const t = m.clock.value / 1000
@@ -44,9 +44,8 @@ export function Gummy({ size, state, phase, press, colors }: LockArtProps) {
     <LockCanvas size={size}>
       <Group opacity={opacity} origin={BASE} transform={transform}>
         <Shackle path={shackle} color={colors.ink} />
-        <Body color={colors.accent} />
-        <Gloss />
-        <Keyhole color={colors.bg} />
+        <Body color={colors.ink} />
+        <Keyhole color={colors.bg} open={m.open} />
       </Group>
     </LockCanvas>
   )

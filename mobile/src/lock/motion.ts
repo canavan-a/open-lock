@@ -31,9 +31,10 @@ export interface LockArtProps {
   colors: LockColors
 }
 
-// Soft and overshooting: the house style for every animation.
-export const GUMMY: WithSpringConfig = { damping: 9, stiffness: 170, mass: 1 }
-export const BOUNCY: WithSpringConfig = { damping: 5, stiffness: 190, mass: 1 }
+// Stiff with a little overshoot: everything lands in about half a second so
+// the lock feels snappy rather than floaty.
+export const GUMMY: WithSpringConfig = { damping: 14, stiffness: 420, mass: 1 }
+export const BOUNCY: WithSpringConfig = { damping: 9, stiffness: 400, mass: 1 }
 
 // A decaying wobble around 0, kicked by giving a spring at rest some velocity.
 export function kick(v: SharedValue<number>, velocity: number, config: WithSpringConfig = BOUNCY) {
@@ -65,6 +66,10 @@ export function useLockMotion(
     // animations that run their own transition (e.g. pop out, swap, pop in)
     // drive `open` themselves
     manualOpen?: boolean
+    // how far (0..1) to start moving towards the other state the moment a
+    // command is sent, so a tap gets an instant response; the rest of the
+    // move plays when the firmware confirms, or it springs back on failure
+    anticipate?: number
   } = {},
 ): LockMotion {
   const target = state === 'open' ? 1 : 0
@@ -74,13 +79,15 @@ export function useLockMotion(
   const shake = useSharedValue(0)
   const clock = useClock()
   const prevState = useRef(state)
+  const anticipating = useRef(false)
   const optsRef = useRef(opts)
   optsRef.current = opts
 
   useEffect(() => {
     const prev = prevState.current
     prevState.current = state
-    known.value = withTiming(state === 'unknown' ? 0 : 1, { duration: 300 })
+    anticipating.current = false
+    known.value = withTiming(state === 'unknown' ? 0 : 1, { duration: 150 })
     if (state === 'unknown') return
     const wasKnown = prev !== 'unknown'
     if (!optsRef.current.manualOpen || !wasKnown) {
@@ -90,16 +97,29 @@ export function useLockMotion(
   }, [state, target, known, open])
 
   useEffect(() => {
-    pending.value = withTiming(phase === 'pending' ? 1 : 0, { duration: 250 })
+    pending.value = withTiming(phase === 'pending' ? 1 : 0, { duration: 120 })
+    const { anticipate, manualOpen, spring } = optsRef.current
+    if (anticipate && !manualOpen && state !== 'unknown') {
+      if (phase === 'pending') {
+        anticipating.current = true
+        open.value = withSpring(target + (target ? -anticipate : anticipate), spring ?? GUMMY)
+      } else if (anticipating.current) {
+        // no state change came (failed or timed out): settle back
+        anticipating.current = false
+        open.value = withSpring(target, spring ?? GUMMY)
+      }
+    }
     if (phase === 'failed') {
       shake.value = withSequence(
-        withTiming(1, { duration: 50 }),
-        withRepeat(withTiming(-1, { duration: 90 }), 4, true),
+        withTiming(1, { duration: 40 }),
+        withRepeat(withTiming(-1, { duration: 60 }), 4, true),
         withSpring(0, GUMMY),
       )
       optsRef.current.onFail?.()
     }
-  }, [phase, pending, shake])
+    // state/target are read, not watched: a state change is the effect above's job
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, pending, shake, open])
 
   return { open, known, pending, shake, clock }
 }

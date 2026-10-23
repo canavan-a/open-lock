@@ -1,7 +1,7 @@
-import { Circle, Group, Path, RoundedRect, Skia } from '@shopify/react-native-skia'
+import { Circle, Group, Path, Rect, Skia } from '@shopify/react-native-skia'
 import React, { useMemo } from 'react'
 import { type SharedValue, useDerivedValue, useSharedValue } from 'react-native-reanimated'
-import { BODY, BODY_BOTTOM, bodyPath, OPEN_RISE, shacklePath } from '../geometry'
+import { BODY, BODY_BOTTOM, bodyPath, SHACKLE_WIDTH, shacklePath } from '../geometry'
 import {
   kick,
   type LockArtProps,
@@ -58,15 +58,15 @@ function Bubble({ m, i, color }: { m: LockMotion; i: number; color: string }) {
 export function Liquid({ size, state, phase, press, colors }: LockArtProps) {
   const slosh = useSharedValue(0)
   const m = useLockMotion(state, phase, {
-    spring: { damping: 12, stiffness: 70, mass: 1 },
-    onChange: (toOpen) => kick(slosh, toOpen ? 1.2 : -1.2, { damping: 3, stiffness: 90, mass: 1 }),
-    onFail: () => kick(slosh, 1.5, { damping: 3, stiffness: 120, mass: 1 }),
+    spring: { damping: 20, stiffness: 260, mass: 1 },
+    onChange: (toOpen) => kick(slosh, toOpen ? 2 : -2, { damping: 6, stiffness: 240, mass: 1 }),
+    onFail: () => kick(slosh, 2.4, { damping: 6, stiffness: 300, mass: 1 }),
   })
   const opacity = useKnownOpacity(m)
   const base = useBaseTransform(m, press)
   const clip = useMemo(() => bodyPath(), [])
 
-  const shackle = useDerivedValue(() => shacklePath(m.open.value * OPEN_RISE))
+  const shackle = useDerivedValue(() => shacklePath(m.open.value))
   const back = useDerivedValue(() => wave(m, slosh, 2.2, -2.4))
   const front = useDerivedValue(() => wave(m, slosh, 0, 3.1))
 
@@ -74,12 +74,11 @@ export function Liquid({ size, state, phase, press, colors }: LockArtProps) {
     <LockCanvas size={size}>
       <Group opacity={opacity} origin={BASE} transform={base}>
         <Shackle path={shackle} color={colors.ink} />
-        <RoundedRect
+        <Rect
           x={BODY.x}
           y={BODY.y}
           width={BODY.w}
           height={BODY.h}
-          r={BODY.r}
           color={colors.bg}
         />
         <Group clip={clip}>
@@ -89,17 +88,16 @@ export function Liquid({ size, state, phase, press, colors }: LockArtProps) {
             <Bubble key={i} m={m} i={i} color="white" />
           ))}
         </Group>
-        <RoundedRect
+        <Rect
           x={BODY.x}
           y={BODY.y}
           width={BODY.w}
           height={BODY.h}
-          r={BODY.r}
           color={colors.ink}
           style="stroke"
-          strokeWidth={4}
+          strokeWidth={SHACKLE_WIDTH / 2}
         />
-        <Keyhole color={colors.ink} />
+        <Keyhole color={colors.ink} open={m.open} />
       </Group>
     </LockCanvas>
   )

@@ -29,6 +29,7 @@ export const getVersionInfo = () => native().getVersionInfo()
 export interface DownloadProgress {
   bytesDownloaded: number
   bytesTotal: number
+  paused: string | null
 }
 
 export function onDownloadProgress(cb: (p: DownloadProgress) => void): () => void {

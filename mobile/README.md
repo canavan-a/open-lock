@@ -18,9 +18,9 @@ It talks to the web-controller's HTTP API (`/state`, `/battery`, `/open`,
   shake. That also happens when the screen is out of sync with the door (the
   firmware just re-reports the state it's already in). **Settings → Manual
   control** sends a specific unlock or lock to recover.
-- **Settings → Lock animation** picks one of eight animations, each with a
-  live preview: Jell-O, Liquid, Gummy, Taffy, Goo, Bubble Pop, Sprinkles,
-  Splash. Saved the moment it's picked.
+- **Settings → Lock animation** picks how the lock (drawn like the app
+  icon) animates, each with a live preview: Classic (default), Jell-O, Gummy,
+  Liquid. Saved the moment it's picked.
 
 ## Stack
 

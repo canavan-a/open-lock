@@ -1,13 +1,9 @@
 import React, { useSyncExternalStore } from 'react'
 import { getConfig, subscribeConfig } from '../lib/config'
-import { BubblePop } from './animations/BubblePop'
-import { Goo } from './animations/Goo'
+import { Classic } from './animations/Classic'
 import { Gummy } from './animations/Gummy'
 import { Jello } from './animations/Jello'
 import { Liquid } from './animations/Liquid'
-import { Splash } from './animations/Splash'
-import { Sprinkles } from './animations/Sprinkles'
-import { Taffy } from './animations/Taffy'
 import type { LockAnimationId } from './ids'
 import type { LockArtProps } from './motion'
 
@@ -20,14 +16,10 @@ export const LOCK_ANIMATIONS: {
   blurb: string
   Component: React.ComponentType<LockArtProps>
 }[] = [
+  { id: 'classic', label: 'Classic', blurb: 'The icon: shackle swings, keyhole turns', Component: Classic },
   { id: 'jello', label: 'Jell-O', blurb: 'Sways and wobbles from its base', Component: Jello },
-  { id: 'liquid', label: 'Liquid', blurb: 'Drains to unlock, fills to lock', Component: Liquid },
   { id: 'gummy', label: 'Gummy', blurb: 'Hops and lands with a squish', Component: Gummy },
-  { id: 'taffy', label: 'Taffy', blurb: 'The shackle stretches and snaps', Component: Taffy },
-  { id: 'goo', label: 'Goo', blurb: 'Drips, splats and slurps back', Component: Goo },
-  { id: 'bubble', label: 'Bubble Pop', blurb: 'Swells, pops, boings back', Component: BubblePop },
-  { id: 'sprinkles', label: 'Sprinkles', blurb: 'Wiggles, then throws candy', Component: Sprinkles },
-  { id: 'splash', label: 'Splash', blurb: 'Bobs, dunks and ripples', Component: Splash },
+  { id: 'liquid', label: 'Liquid', blurb: 'Drains to unlock, fills to lock', Component: Liquid },
 ]
 
 export function LockArt({ animation, ...props }: LockArtProps & { animation: LockAnimationId }) {

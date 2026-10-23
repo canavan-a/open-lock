@@ -1,10 +1,8 @@
 package com.superlock
 
 import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -90,95 +88,83 @@ class AppUpdaterModule(private val reactCtx: ReactApplicationContext) :
               .setTitle("Super Lock $versionLabel")
               .setDescription("Downloading update")
               .setMimeType("application/vnd.android.package-archive")
+              .setAllowedOverMetered(true)
+              .setAllowedOverRoaming(true)
               .setNotificationVisibility(
                   DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
               .setDestinationInExternalFilesDir(
                   reactCtx, Environment.DIRECTORY_DOWNLOADS, fileName)
 
       val id = dm.enqueue(req)
-      trackProgress(id)
-
-      val receiver =
-          object : BroadcastReceiver() {
-            override fun onReceive(c: Context, i: Intent) {
-              val done = i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
-              if (done != id) return
-              try {
-                reactCtx.unregisterReceiver(this)
-              } catch (_: Exception) {}
-
-              val q = DownloadManager.Query().setFilterById(id)
-              dm.query(q).use { cur ->
-                if (cur == null || !cur.moveToFirst()) {
-                  promise.reject("download_failed", "download row missing")
-                  return
-                }
-                val status =
-                    cur.getInt(cur.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                  val local =
-                      File(
-                              reactCtx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-                              fileName)
-                          .absolutePath
-                  promise.resolve(local)
-                } else {
-                  val reason =
-                      cur.getInt(cur.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
-                  promise.reject("download_failed", "status=$status reason=$reason")
-                }
-              }
-            }
-          }
-      val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        reactCtx.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
-      } else {
-        @Suppress("UnspecifiedRegisterReceiverFlag") reactCtx.registerReceiver(receiver, filter)
-      }
+      trackDownload(id, fileName, promise)
     } catch (e: Exception) {
       promise.reject("download_failed", e)
     }
   }
 
   // Poll the download row until it settles, emitting AppUpdaterProgress events so
-  // JS can render a percentage.
-  private fun trackProgress(id: Long) {
+  // JS can render a percentage, then settle the promise from the final status.
+  // Polling instead of waiting on ACTION_DOWNLOAD_COMPLETE means a missed
+  // broadcast can't leave the update hanging forever.
+  private fun trackDownload(id: Long, fileName: String, promise: Promise) {
     val handler = Handler(Looper.getMainLooper())
     val poll =
         object : Runnable {
           override fun run() {
             val q = DownloadManager.Query().setFilterById(id)
-            var running = false
-            dm.query(q)?.use { cur ->
-              if (cur.moveToFirst()) {
-                val status =
-                    cur.getInt(cur.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                val bytes =
-                    cur.getLong(
-                        cur.getColumnIndexOrThrow(
-                            DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                val total =
-                    cur.getLong(
-                        cur.getColumnIndexOrThrow(
-                            DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-                emitProgress(bytes, total)
-                running =
-                    status == DownloadManager.STATUS_RUNNING ||
-                        status == DownloadManager.STATUS_PENDING ||
-                        status == DownloadManager.STATUS_PAUSED
+            val cur = dm.query(q)
+            if (cur == null) {
+              promise.reject("download_failed", "download row missing")
+              return
+            }
+            cur.use {
+              if (!it.moveToFirst()) {
+                promise.reject("download_failed", "download was cancelled")
+                return
+              }
+              val status = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+              val reason = it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
+              val bytes =
+                  it.getLong(
+                      it.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+              val total =
+                  it.getLong(it.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+              when (status) {
+                DownloadManager.STATUS_SUCCESSFUL -> {
+                  emitProgress(total, total, null)
+                  val local =
+                      File(reactCtx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
+                          .absolutePath
+                  promise.resolve(local)
+                  return
+                }
+                DownloadManager.STATUS_FAILED -> {
+                  promise.reject("download_failed", "download failed (reason=$reason)")
+                  return
+                }
+                DownloadManager.STATUS_PAUSED -> emitProgress(bytes, total, pausedReason(reason))
+                else -> emitProgress(bytes, total, null)
               }
             }
-            if (running) handler.postDelayed(this, 400)
+            handler.postDelayed(this, 400)
           }
         }
     handler.post(poll)
   }
 
-  private fun emitProgress(bytes: Long, total: Long) {
+  private fun pausedReason(reason: Int) =
+      when (reason) {
+        DownloadManager.PAUSED_WAITING_FOR_NETWORK -> "waiting for network"
+        DownloadManager.PAUSED_QUEUED_FOR_WIFI -> "waiting for Wi-Fi"
+        DownloadManager.PAUSED_WAITING_TO_RETRY -> "retrying"
+        else -> "paused"
+      }
+
+  private fun emitProgress(bytes: Long, total: Long, paused: String?) {
     val map: WritableMap = Arguments.createMap()
     map.putDouble("bytesDownloaded", bytes.toDouble())
     map.putDouble("bytesTotal", total.toDouble())
+    if (paused != null) map.putString("paused", paused) else map.putNull("paused")
     reactCtx
         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
         .emit("AppUpdaterProgress", map)

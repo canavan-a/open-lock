@@ -69,9 +69,9 @@ export function SettingsScreen() {
 
   useEffect(() => {
     if (!busy) return
-    const off = onDownloadProgress(({ bytesDownloaded, bytesTotal }) => {
+    const off = onDownloadProgress(({ bytesDownloaded, bytesTotal, paused }) => {
       const pct = bytesTotal > 0 ? Math.round((bytesDownloaded / bytesTotal) * 100) : 0
-      setUpdateStatus(`Downloading… ${pct}%`)
+      setUpdateStatus(paused ? `Download paused (${paused})… ${pct}%` : `Downloading… ${pct}%`)
     })
     return off
   }, [busy])
