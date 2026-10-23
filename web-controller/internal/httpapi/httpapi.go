@@ -26,7 +26,8 @@ type Locker interface {
 }
 
 // New returns a router serving the lock API and the UI from uiFS (already
-// rooted at the directory that contains index.html).
+// rooted at the directory that contains index.html), or the API alone when
+// uiFS is nil.
 func New(lk Locker, uiFS fs.FS, log *slog.Logger) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -59,6 +60,9 @@ func New(lk Locker, uiFS fs.FS, log *slog.Logger) *gin.Engine {
 		c.JSON(http.StatusAccepted, gin.H{"sent": "closed"})
 	})
 
+	if uiFS == nil {
+		return r
+	}
 	fileServer := http.FileServer(http.FS(uiFS))
 	r.NoRoute(func(c *gin.Context) {
 		if c.Request.Method != http.MethodGet {

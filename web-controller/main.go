@@ -38,9 +38,10 @@ func run(log *slog.Logger) error {
 	defer lk.Stop()
 	go lk.Poll(ctx)
 
-	uiFS, err := fs.Sub(uiDist, "ui/dist")
-	if err != nil {
-		return err
+	var uiFS fs.FS
+	if cfg.UIDir != "" {
+		uiFS = os.DirFS(cfg.UIDir)
+		log.Info("serving ui", "dir", cfg.UIDir)
 	}
 
 	srv := &http.Server{

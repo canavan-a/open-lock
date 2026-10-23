@@ -1,7 +1,8 @@
 # web controller
 
-A single Go binary that bridges the browser UI to the lock firmware over MQTT.
-The built React UI (`ui/`) is embedded into the binary and served at `/`.
+A single Go binary that bridges the app to the lock firmware over MQTT.
+With `UI_DIR` set it also serves the app's web build (a PWA, see
+[`mobile/README.md`](../mobile/README.md#web-pwa)) at `/`.
 
 Auth is expected to be handled at the edge (e.g. Cloudflare Access) — the server
 has no login of its own.
@@ -11,11 +12,9 @@ has no login of its own.
 | Path | Purpose |
 | --- | --- |
 | `main.go` | wiring: config → MQTT door client → Gin router → graceful shutdown |
-| `static.go` | `//go:embed all:ui/dist` |
 | `internal/config` | environment configuration |
 | `internal/door` | MQTT client: publishes commands, caches lock state + battery |
 | `internal/httpapi` | Gin router and handlers |
-| `ui/` | Vite + React + Tailwind/daisyUI single-page UI |
 
 ## HTTP endpoints
 
@@ -27,7 +26,7 @@ has no login of its own.
 | `POST` | `/open` | `{"sent":"open"}` |
 | `POST` | `/close` | `{"sent":"closed"}` |
 | `GET` | `/healthz` | `{"status":"ok"}` |
-| `GET` | `/*` | embedded UI (SPA fallback to `index.html`) |
+| `GET` | `/*` | the web build in `UI_DIR`, if set (SPA fallback to `index.html`) |
 
 ## MQTT contract (with the firmware)
 
@@ -41,15 +40,14 @@ charging; `charging` is true above 10 mA). State is re-requested every `POLL_INT
 
 `MQTT_BROKER`, `MQTT_PORT`, `MQTT_CLIENT_ID`, `MQTT_ANON`, `MQTT_USERNAME`,
 `MQTT_PASSWORD`, `TOPIC_SIGNAL`, `TOPIC_STATE`, `TOPIC_BATTERY`, `TOPIC_CURRENT`,
-`POLL_INTERVAL`, `HTTP_ADDR`. See `../config.example.env`.
+`POLL_INTERVAL`, `HTTP_ADDR`, `UI_DIR`. See `../config.example.env`.
 
 ## Build
 
 ```
-make build        # builds ui/ then the Go binary into bin/
-make dev-ui       # vite dev server, proxies API calls to :8080
+make build                     # the Go binary into bin/
+UI_DIR=../mobile/dist make run # with the web build (npm run build:web in ../mobile)
 go test ./...
 ```
 
-`ui/dist` is committed so `go build` / the Nix package work without Node.
-Rebuild it (`make build-ui`) and commit the result whenever the UI changes.
+The Nix module builds the web app (`packages.web`) and points `UI_DIR` at it.

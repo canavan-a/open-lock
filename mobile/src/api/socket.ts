@@ -14,6 +14,14 @@ export interface LockSnapshot {
   charging: boolean
 }
 
+// React Native's WebSocket constructor, which also takes headers. Spelled out
+// so the web build, typed against the DOM's, compiles this too.
+type RNWebSocket = new (
+  url: string,
+  protocols: null,
+  options: { headers: Record<string, string> },
+) => WebSocket
+
 const MIN_RETRY_MS = 500
 const MAX_RETRY_MS = 10000
 // A few missed heartbeats means the socket is dead even if the OS hasn't
@@ -48,7 +56,12 @@ export function useLockSocket(onSnapshot: (s: LockSnapshot) => void): boolean {
         clearTimeout(retryTimer)
         const c = getConfig()
         const url = `${baseUrl(c).replace(/^http/i, 'ws')}/ws`
-        const sock = new WebSocket(url, null, { headers: accessHeaders(c) })
+        const headers = accessHeaders(c)
+        // Custom headers are an RN extension; a browser's WebSocket takes
+        // none (and would send a literal "null" subprotocol).
+        const sock = Object.keys(headers).length
+          ? new (WebSocket as unknown as RNWebSocket)(url, null, { headers })
+          : new WebSocket(url)
         ws = sock
         sock.onopen = () => {
           delay = MIN_RETRY_MS

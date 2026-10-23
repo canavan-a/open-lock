@@ -4,5 +4,7 @@
     "types": ["react-native"],
     "skipLibCheck": true
   },
-  "include": ["src", "index.js", "*.d.ts"]
+  "include": ["src", "index.js", "*.d.ts"],
+  // The web build's files are checked by tsconfig.web.json.
+  "exclude": ["**/*.web.ts", "**/*.web.tsx", "web.d.ts"]
 }

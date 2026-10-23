@@ -1,0 +1,15 @@
+{
+  // The web build: .web.ts(x) twins win, as in vite.config.ts, with the DOM.
+  // Only what index.web.tsx reaches is checked, so the app's own App.tsx and
+  // SettingsScreen.tsx (tsconfig.json) stay out of it.
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    "types": ["react-native"],
+    "lib": ["es2022", "dom"],
+    "module": "esnext",
+    "moduleSuffixes": [".web", ""],
+    "skipLibCheck": true
+  },
+  "include": [],
+  "files": ["index.web.tsx", "web.d.ts"]
+}

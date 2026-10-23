@@ -7,7 +7,38 @@
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
+
+      # The app's web build (a PWA, mobile/ through react-native-web), talking
+      # to the web-controller at apiOrigin, e.g. "https://lock.example.com".
+      # Empty means whatever origin the page is served from, i.e. the
+      # web-controller serving it itself. Bump npmDepsHash whenever
+      # mobile/package-lock.json changes:
+      #   nix run nixpkgs#prefetch-npm-deps mobile/package-lock.json
+      mkWeb = pkgs: { apiOrigin ? "" }:
+        let fs = pkgs.lib.fileset; in
+        pkgs.buildNpmPackage {
+          pname = "open-lock-web";
+          version = "0.1.0";
+          src = fs.toSource {
+            root = ./mobile;
+            fileset = fs.difference ./mobile (fs.unions [
+              ./mobile/android
+              (fs.maybeMissing ./mobile/node_modules)
+              (fs.maybeMissing ./mobile/dist)
+            ]);
+          };
+          npmDepsHash = "sha256-m6mLUCIhiAqWUKXOtgwYc4/p5DarhWMFmYJXilInz+0=";
+          npmBuildScript = "build:web";
+          env.API_ORIGIN = apiOrigin;
+          installPhase = ''
+            runHook preInstall
+            cp -r dist $out
+            runHook postInstall
+          '';
+        };
     in {
+      lib.mkWeb = mkWeb;
+
       packages = forAllSystems (system:
         let pkgs = nixpkgs.legacyPackages.${system}; in {
           web-controller = pkgs.buildGoModule {
@@ -16,6 +47,7 @@
             src = ./web-controller;
             vendorHash = null;
           };
+          web = mkWeb pkgs { };
           default = self.packages.${system}.web-controller;
         }
       );
@@ -111,6 +143,33 @@
               default = true;
               description = "Whether to configure and start a local mosquitto broker. Set to false if you have an existing broker.";
             };
+
+            web = {
+              enable = lib.mkOption {
+                type = lib.types.bool;
+                default = true;
+                description = "Serve the app's web build (a PWA) at / alongside the API.";
+              };
+
+              apiOrigin = lib.mkOption {
+                type = lib.types.str;
+                default = "";
+                example = "https://lock.example.com";
+                description = ''
+                  The web-controller origin the web build talks to, fixed at
+                  build time. Empty means the origin the page is served from,
+                  which is right when this service serves it. Set it when the
+                  page is reached under a different origin than the API.
+                '';
+              };
+
+              package = lib.mkOption {
+                type = lib.types.package;
+                default = mkWeb pkgs { inherit (cfg.web) apiOrigin; };
+                defaultText = lib.literalExpression "open-lock.lib.mkWeb pkgs { inherit (cfg.web) apiOrigin; }";
+                description = "The built web app to serve. Use the same package to host it elsewhere.";
+              };
+            };
           };
 
           config = lib.mkIf cfg.enable {
@@ -141,6 +200,8 @@
                 TOPIC_CURRENT = cfg.topicCurrent;
                 POLL_INTERVAL = cfg.pollInterval;
                 HTTP_ADDR = cfg.httpAddr;
+              } // lib.optionalAttrs cfg.web.enable {
+                UI_DIR = "${cfg.web.package}";
               } // lib.optionalAttrs (cfg.mqttUsername != null) {
                 MQTT_USERNAME = cfg.mqttUsername;
               } // lib.optionalAttrs (cfg.mqttPassword != null) {

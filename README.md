@@ -11,9 +11,9 @@ IoT door lock with open source firmware, 3d models, and web controller
 
 [models](models/readme.md) — 3D printable parts
 
-[web-controller](web-controller/readme.md) — Go + React web UI
+[web-controller](web-controller/readme.md) — Go server bridging the apps to the lock over MQTT
 
-[mobile](mobile/README.md) — Super Lock, the sideloaded Android app
+[mobile](mobile/README.md) — Super Lock, the sideloaded Android app and its web (PWA) build
 
 ## Hardware
 
@@ -62,6 +62,18 @@ outputs = { nixpkgs, open-lock, ... }: {
 ```
 
 This starts the web controller as a systemd service and manages a local mosquitto broker automatically.
+
+It also builds the app's web version (a PWA, see [mobile](mobile/README.md#web-pwa)) and
+serves it at `/`. The page talks to the API on its own origin by default; when the page
+is reached under a different origin than the API, set it at build time:
+
+```nix
+services."open-lock".web.apiOrigin = "https://lock.example.com";
+# services."open-lock".web.enable = false;  # API only
+```
+
+`open-lock.lib.mkWeb pkgs { apiOrigin = "…"; }` builds the same static site to host
+anywhere else.
 
 ### Local development
 

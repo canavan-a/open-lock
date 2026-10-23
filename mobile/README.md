@@ -1,6 +1,7 @@
-# Super Lock (Android)
+# Super Lock (Android + web)
 
-Super Lock is the sideloaded (direct-APK, no Play Store) Android client for the
+Super Lock is the sideloaded (direct-APK, no Play Store) Android client, and a
+PWA built from the same code (see [Web](#web-pwa)), for the
 open-lock web-controller. The screen is one big animated padlock: tap it to ask
 for the opposite of what it shows. The battery sits in the top-left corner and
 a gear in the top-right opens Settings.
@@ -68,12 +69,38 @@ Settings → Updates checks GitHub Releases on canavan-a/open-lock for
 `mobile-v*` tags, and downloads and hands the APK to the system installer
 (`AppUpdaterModule.kt`). It also checks on launch unless turned off.
 
+## Web (PWA)
+
+The same `src/` also builds for the browser through react-native-web
+(`vite.config.ts`), installable as a PWA (`pwa/`, `public/manifest.webmanifest`).
+Skia draws with CanvasKit there (`index.web.tsx` loads it first; the wasm is
+~8 MB, cached by the service worker after the first visit), so every lock
+animation is the same as on the phone.
+
+Files with a `.web.ts(x)` twin are swapped for it in that build, which is what
+leaves the Android-only parts out:
+
+- `src/App.web.tsx` — no APK update check, no launcher icon swap.
+- `src/lib/config.web.ts` — no host or Cloudflare Access token to enter: the
+  web-controller origin is fixed at build time (`API_ORIGIN`, empty = the
+  page's own origin), and a browser behind Access uses Access's own login.
+- `src/screens/SettingsScreen.web.tsx` — Appearance, Lock animation and
+  Manual control only (shared with the app via `settingsParts.tsx`).
+
+The NixOS module builds it (`packages.web`, or `lib.mkWeb pkgs { apiOrigin = …; }`)
+and the web-controller serves it at `/`; see the root README. Bump
+`npmDepsHash` in `flake.nix` when `package-lock.json` changes:
+`nix run nixpkgs#prefetch-npm-deps mobile/package-lock.json`.
+
 ## Develop
 
 ```
 npm install
 npm start                 # Metro
 npm run android           # debug build onto a connected device
+npm run web               # Vite on :5173, API proxied to API_ORIGIN or localhost:8080
+npm run build:web         # dist/
+npm run lint              # type-checks the app and the web build
 ```
 
 ## Release APK

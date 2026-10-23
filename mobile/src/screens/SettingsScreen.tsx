@@ -3,16 +3,14 @@ import { useRoute } from '@react-navigation/native'
 import React, { useEffect, useState } from 'react'
 import {
   Alert,
-  Pressable,
   ScrollView,
-  StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native'
-import { BATTERY_UNAVAILABLE, closeLock, getBattery, getState, openLock } from '../api/client'
+import { BATTERY_UNAVAILABLE, getBattery, getState } from '../api/client'
 import {
   compareVersions,
   DowngradeBlockedError,
@@ -29,15 +27,9 @@ import {
   loadConfig,
   saveConfig,
 } from '../lib/config'
-import {
-  THEME_OPTIONS,
-  THEMES,
-  type Theme,
-  type ThemeName,
-  useTheme,
-  useThemedStyles,
-} from '../theme'
+import { useTheme, useThemedStyles } from '../theme'
 import { AnimationPicker } from './AnimationPicker'
+import { Field, makeStyles, ManualControl, ThemePicker } from './settingsParts'
 
 export function SettingsScreen() {
   const isSetup = useRoute().name === 'Setup'
@@ -55,8 +47,6 @@ export function SettingsScreen() {
   const [busy, setBusy] = useState(false)
   const [checking, setChecking] = useState(false)
   const [showDowngrade, setShowDowngrade] = useState(false)
-  const [manualResult, setManualResult] = useState<string>()
-  const [manualBusy, setManualBusy] = useState(false)
 
   useEffect(() => {
     loadConfig().then(setCfg)
@@ -146,32 +136,6 @@ export function SettingsScreen() {
     Alert.alert('Saved')
   }
 
-  // Applied and saved on tap, without waiting on Save — but only the theme, so
-  // unsaved connection edits stay unsaved.
-  const onPickTheme = async (name: ThemeName) => {
-    setCfg((c) => ({ ...c, themeName: name }))
-    await saveConfig({ ...getConfig(), themeName: name })
-  }
-
-  // The escape hatch for when the lock screen and the door disagree: tapping
-  // the lock only ever asks for the opposite of what it shows.
-  const onManual = async (action: 'open' | 'close') => {
-    setManualBusy(true)
-    setManualResult(action === 'open' ? 'Sending unlock…' : 'Sending lock…')
-    try {
-      await (action === 'open' ? openLock() : closeLock())
-      // give the firmware time to move and report before reading it back
-      await new Promise<void>((r) => setTimeout(() => r(), 2500))
-      const { state } = await getState()
-      const shown = state === 'open' ? 'unlocked' : state === 'closed' ? 'locked' : 'unknown'
-      setManualResult(`Sent. The lock now reports ${shown}.`)
-    } catch (e) {
-      setManualResult(`Failed: ${String((e as Error).message ?? e)}`)
-    } finally {
-      setManualBusy(false)
-    }
-  }
-
   // Tests the values in the form, not the saved ones.
   const onTest = async () => {
     setTestResult('…')
@@ -254,52 +218,13 @@ export function SettingsScreen() {
       )}
 
       <Text style={styles.section}>Appearance</Text>
-      <View style={styles.themeRow}>
-        {THEME_OPTIONS.map((opt) => (
-          <Pressable
-            key={opt.name}
-            style={[styles.themeSwatch, theme.name === opt.name && styles.themeSwatchActive]}
-            onPress={() => onPickTheme(opt.name)}
-          >
-            <View style={styles.themeSwatchColors}>
-              <View style={[styles.themeSwatchDot, { backgroundColor: THEMES[opt.name].bg }]} />
-              <View style={[styles.themeSwatchDot, { backgroundColor: THEMES[opt.name].primary }]} />
-            </View>
-            <Text style={styles.themeSwatchLabel}>{opt.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <ThemePicker />
       <Text style={styles.hint}>The app icon follows the theme once you leave the app.</Text>
 
       <Text style={styles.section}>Lock animation</Text>
       <AnimationPicker />
 
-      {!isSetup && (
-        <>
-          <Text style={styles.section}>Manual control</Text>
-          <Text style={styles.hint}>
-            If the lock screen ever disagrees with the door, send a specific command here. The lock
-            screen catches up as soon as the lock reports back.
-          </Text>
-          <View style={styles.manualRow}>
-            <TouchableOpacity
-              style={[styles.btnOutline, styles.manualBtn, manualBusy && styles.btnDisabled]}
-              disabled={manualBusy}
-              onPress={() => onManual('open')}
-            >
-              <Text style={styles.btnOutlineText}>Send unlock</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btnOutline, styles.manualBtn, manualBusy && styles.btnDisabled]}
-              disabled={manualBusy}
-              onPress={() => onManual('close')}
-            >
-              <Text style={styles.btnOutlineText}>Send lock</Text>
-            </TouchableOpacity>
-          </View>
-          {manualResult ? <Text style={styles.hint}>{manualResult}</Text> : null}
-        </>
-      )}
+      {!isSetup && <ManualControl />}
 
       <Text style={styles.section}>Updates</Text>
       <TouchableOpacity onPress={checkUpdates} disabled={checking}>
@@ -365,82 +290,4 @@ export function SettingsScreen() {
       {!isSetup && <Text style={styles.hint}>Tap Save to keep this change.</Text>}
     </ScrollView>
   )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  const styles = useThemedStyles(makeStyles)
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      {children}
-    </View>
-  )
-}
-
-function makeStyles(theme: Theme) {
-  return StyleSheet.create({
-    scroll: { flex: 1, backgroundColor: theme.bg },
-    container: { padding: 16, gap: 12, backgroundColor: theme.bg },
-    field: { gap: 4 },
-    label: { color: theme.text, fontSize: 13 },
-    hint: { color: theme.textMuted, fontSize: 11 },
-    section: { color: theme.textMuted, fontSize: 12, marginTop: 12, textTransform: 'uppercase' },
-    input: {
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      color: theme.text,
-      backgroundColor: theme.surface,
-    },
-    rowBetween: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
-    btn: {
-      backgroundColor: theme.primary,
-      borderRadius: 8,
-      paddingVertical: 12,
-      alignItems: 'center',
-      marginTop: 8,
-    },
-    btnText: { color: theme.primaryText, fontWeight: '600' },
-    btnDisabled: { opacity: 0.5 },
-    pickerWrap: {
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 8,
-      overflow: 'hidden',
-    },
-    picker: { color: theme.text },
-    btnOutline: {
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 8,
-      paddingVertical: 12,
-      alignItems: 'center',
-    },
-    btnOutlineText: { color: theme.text },
-    manualRow: { flexDirection: 'row', gap: 12 },
-    manualBtn: { flex: 1 },
-    linkText: { color: theme.primary, fontSize: 12 },
-    themeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    themeSwatch: {
-      alignItems: 'center',
-      gap: 6,
-      padding: 10,
-      borderRadius: 10,
-      borderWidth: 2,
-      borderColor: theme.border,
-      backgroundColor: theme.surface,
-    },
-    themeSwatchActive: { borderColor: theme.primary },
-    themeSwatchColors: {
-      flexDirection: 'row',
-      borderRadius: 14,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    themeSwatchDot: { width: 20, height: 28 },
-    themeSwatchLabel: { fontSize: 12, fontWeight: '600', color: theme.text },
-  })
 }

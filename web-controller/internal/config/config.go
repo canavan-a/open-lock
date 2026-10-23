@@ -23,6 +23,9 @@ type Config struct {
 	Password     string
 	PollInterval time.Duration
 	HTTPAddr     string
+	// UIDir is a built web app (index.html at its root) to serve at /. Empty
+	// serves the API only.
+	UIDir string
 }
 
 // BrokerURL returns the tcp:// URL the MQTT client should dial.
@@ -86,6 +89,7 @@ func FromEnv() Config {
 			c.PollInterval = d
 		}
 	}
+	c.UIDir = os.Getenv("UI_DIR")
 	if v := os.Getenv("HTTP_ADDR"); v != "" {
 		c.HTTPAddr = v
 	}

@@ -1,15 +1,11 @@
 CGO_ENABLED=0
 
-build: build-ui
+build:
 	go build -o bin/web-controller .
 
-build-ui:
-	cd ui && npm install && npm run build
-
+# UI_DIR=../mobile/dist make run serves the web build too (npm run build:web
+# in ../mobile).
 run:
 	CGO_ENABLED=0 go run .
 
-dev-ui:
-	cd ui && npm run dev
-
-.PHONY: build build-ui run dev-ui
+.PHONY: build run

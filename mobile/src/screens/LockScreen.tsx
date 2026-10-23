@@ -63,12 +63,11 @@ function usePoll(fn: () => void, ms: number, enabled: boolean) {
   )
 }
 
-function batteryIcon(percent: number, charging: boolean): string {
+function batteryIcon(percent: number): string {
   if (percent === BATTERY_UNAVAILABLE) return 'battery-unknown'
-  const base = charging ? 'battery-charging' : 'battery'
-  if (percent >= 95) return charging ? 'battery-charging-100' : base
-  if (percent < 5) return `${base}-outline`
-  return `${base}-${Math.max(10, Math.round(percent / 10) * 10)}`
+  if (percent >= 95) return 'battery'
+  if (percent < 5) return 'battery-outline'
+  return `battery-${Math.max(10, Math.round(percent / 10) * 10)}`
 }
 
 function Battery({ percent, charging }: { percent: number | null; charging: boolean }) {
@@ -79,16 +78,18 @@ function Battery({ percent, charging }: { percent: number | null; charging: bool
   const isError = percent === BATTERY_UNAVAILABLE
   const clamped = Math.min(100, Math.max(0, percent))
   const showCharging = charging && !isError
+  // no red while it is charging back up
   const color = isError || clamped > 20 || showCharging ? theme.textMuted : theme.danger
   const label = isError ? 'Battery unknown' : `Battery ${clamped}%${showCharging ? ', charging' : ''}`
   return (
     <View style={styles.battery} accessibilityLabel={label}>
       <MaterialCommunityIcons
-        name={batteryIcon(percent, showCharging)}
+        name={batteryIcon(percent)}
         size={22}
         color={color}
         style={styles.batteryIcon}
       />
+      {showCharging ? <MaterialCommunityIcons name="flash" size={14} color={color} /> : null}
       <Text style={[styles.batteryLabel, { color }]}>{isError ? '?' : `${clamped}%`}</Text>
     </View>
   )
