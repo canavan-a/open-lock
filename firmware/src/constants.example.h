@@ -5,6 +5,10 @@ namespace config{
 	// GPIO switching a MOSFET/load switch on the servo's supply, so the servo
 	// draws nothing between moves. -1 if the servo is wired straight to the rail.
 	const int ServoPowerGpio {-1};
+	// How long the pwm is held per move before the new state is reported. An
+	// MG995 needs ~0.3 s for 90 degrees unloaded; lower this until the bolt
+	// sometimes stops short, then add margin.
+	const int ServoMoveMs {700};
 
 	const char* const MqttBroker {"localhost"};
 	const int MqttPort {1883};

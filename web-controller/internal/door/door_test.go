@@ -75,3 +75,39 @@ func TestStateString(t *testing.T) {
 		}
 	}
 }
+
+func TestSubscribeGetsCurrentThenLatest(t *testing.T) {
+	d := newTestDoor()
+	d.handleState([]byte("open"))
+
+	ch, unsubscribe := d.Subscribe()
+	defer unsubscribe()
+	if s := <-ch; s.State != "open" {
+		t.Fatalf("initial snapshot state = %q, want open", s.State)
+	}
+
+	// Two reports with nobody reading: only the latest is kept.
+	d.handleState([]byte("closed"))
+	d.handleBattery([]byte("55"))
+	if s := <-ch; s != (Snapshot{State: "closed", Battery: 55}) {
+		t.Errorf("snapshot = %+v, want closed/55", s)
+	}
+	select {
+	case s := <-ch:
+		t.Errorf("unexpected extra snapshot %+v", s)
+	default:
+	}
+}
+
+func TestUnsubscribeStopsUpdates(t *testing.T) {
+	d := newTestDoor()
+	ch, unsubscribe := d.Subscribe()
+	<-ch
+	unsubscribe()
+	d.handleState([]byte("open"))
+	select {
+	case s := <-ch:
+		t.Errorf("got snapshot after unsubscribe: %+v", s)
+	default:
+	}
+}

@@ -19,7 +19,6 @@ enum State {
 	CLOSED = 1,
 };
 
-constexpr int FlatDelay{1000};
 constexpr int queueSize{10};
 
 // same pulse range as ESP32Servo's defaults, so close angles saved by the old
@@ -153,7 +152,7 @@ struct ServoManager{
 		// update_duty also re-enables the output that ledc_stop turned off
 		ledc_set_duty(ServoLedcMode, ServoLedcChannel, (uint32_t)us * ServoDutyMax / ServoPeriodUs);
 		ledc_update_duty(ServoLedcMode, ServoLedcChannel);
-		vTaskDelay(pdMS_TO_TICKS(FlatDelay));
+		vTaskDelay(pdMS_TO_TICKS(config::ServoMoveMs));
 
 		// equivalent of servo.detach(): hold the signal line low
 		ledc_stop(ServoLedcMode, ServoLedcChannel, 0);

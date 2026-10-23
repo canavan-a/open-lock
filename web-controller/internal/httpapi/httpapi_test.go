@@ -1,7 +1,11 @@
 package httpapi
 
 import (
+	"strings"
+	"time"
+
 	"encoding/json"
+	"github.com/gorilla/websocket"
 	"io"
 	"log/slog"
 	"net/http"
@@ -17,12 +21,24 @@ type fakeLock struct {
 	battery int
 	opened  int
 	closed  int
+	updates chan door.Snapshot
 }
 
 func (f *fakeLock) Open()             { f.opened++ }
 func (f *fakeLock) Close()            { f.closed++ }
 func (f *fakeLock) State() door.State { return f.state }
 func (f *fakeLock) Battery() int      { return f.battery }
+func (f *fakeLock) Snapshot() door.Snapshot {
+	return door.Snapshot{State: f.state.String(), Battery: f.battery}
+}
+
+func (f *fakeLock) Subscribe() (<-chan door.Snapshot, func()) {
+	if f.updates == nil {
+		f.updates = make(chan door.Snapshot, 1)
+	}
+	f.updates <- f.Snapshot()
+	return f.updates, func() {}
+}
 
 func testRouter(lk Locker) http.Handler {
 	ui := fstest.MapFS{"index.html": {Data: []byte("<!doctype html>ui")}}
@@ -86,5 +102,34 @@ func TestUIFallback(t *testing.T) {
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/some/spa/route", nil))
 	if rec.Code != http.StatusOK || rec.Body.String() != "<!doctype html>ui" {
 		t.Errorf("spa fallback: status=%d body=%q", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSocketPushesSnapshots(t *testing.T) {
+	lk := &fakeLock{state: door.StateOpen, battery: 80}
+	srv := httptest.NewServer(testRouter(lk))
+	defer srv.Close()
+
+	conn, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+"/ws", nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+
+	var got door.Snapshot
+	if err := conn.ReadJSON(&got); err != nil {
+		t.Fatalf("read initial: %v", err)
+	}
+	if got != (door.Snapshot{State: "open", Battery: 80}) {
+		t.Errorf("initial snapshot = %+v", got)
+	}
+
+	lk.updates <- door.Snapshot{State: "closed", Battery: 79}
+	if err := conn.ReadJSON(&got); err != nil {
+		t.Fatalf("read update: %v", err)
+	}
+	if got != (door.Snapshot{State: "closed", Battery: 79}) {
+		t.Errorf("pushed snapshot = %+v", got)
 	}
 }

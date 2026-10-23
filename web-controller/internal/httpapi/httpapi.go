@@ -21,6 +21,8 @@ type Locker interface {
 	Close()
 	State() door.State
 	Battery() int
+	Snapshot() door.Snapshot
+	Subscribe() (<-chan door.Snapshot, func())
 }
 
 // New returns a router serving the lock API and the UI from uiFS (already
@@ -43,6 +45,9 @@ func New(lk Locker, uiFS fs.FS, log *slog.Logger) *gin.Engine {
 	})
 	r.GET("/battery", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"battery": lk.Battery()})
+	})
+	r.GET("/ws", func(c *gin.Context) {
+		serveSocket(c.Writer, c.Request, lk, log)
 	})
 	r.POST("/open", func(c *gin.Context) {
 		lk.Open()

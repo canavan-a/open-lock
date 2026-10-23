@@ -23,6 +23,7 @@ has no login of its own.
 | --- | --- | --- |
 | `GET` | `/state` | `{"state":"open"\|"closed"\|"unknown"}` |
 | `GET` | `/battery` | `{"battery":<int>}` (`999` = fuel gauge unavailable) |
+| `GET` | `/ws` | WebSocket: pushes `{"state":...,"battery":...}` on connect, on every firmware report, and every 25s as a heartbeat |
 | `POST` | `/open` | `{"sent":"open"}` |
 | `POST` | `/close` | `{"sent":"closed"}` |
 | `GET` | `/healthz` | `{"status":"ok"}` |

@@ -22,14 +22,17 @@ import {
   getState,
   openLock,
 } from '../api/client'
+import { useLockSocket } from '../api/socket'
 import { type Theme, useTheme, useThemedStyles } from '../theme'
 
-// A port of web-controller/ui/src/Lock.jsx: same polling cadence, the same
-// pending ring while waiting for the state we asked for, the same glyphs.
+// A port of web-controller/ui/src/Lock.jsx: live state over the /ws socket
+// with the same polling fallback, the same pending ring while waiting for the
+// state we asked for, the same glyphs.
 
 // How long to keep the pulsing "pending" ring before giving up on seeing the
 // state flip we asked for.
 const PENDING_TIMEOUT_MS = 15000
+// Fallback polling cadence, used only while the /ws socket is down.
 const STATE_POLL_MS = 1000
 const BATTERY_POLL_MS = 5000
 // Consecutive failed state polls before the screen says it's offline.
@@ -42,13 +45,14 @@ const OPEN_PATH =
 const CLOSED_PATH =
   'M4 6V4C4 1.79086 5.79086 0 8 0C10.2091 0 12 1.79086 12 4V6H14V16H2V6H4ZM6 4C6 2.89543 6.89543 2 8 2C9.10457 2 10 2.89543 10 4V6H6V4ZM7 13V9H9V13H7Z'
 
-// Runs `fn` now and every `ms` while the screen is focused and the app is in
-// the foreground — nothing polls from the background.
-function usePoll(fn: () => void, ms: number) {
+// Runs `fn` now and every `ms` while `enabled`, the screen is focused and the
+// app is in the foreground — nothing polls from the background.
+function usePoll(fn: () => void, ms: number, enabled: boolean) {
   const fnRef = useRef(fn)
   fnRef.current = fn
   useFocusEffect(
     useCallback(() => {
+      if (!enabled) return
       let timer: ReturnType<typeof setInterval> | undefined
       const start = () => {
         if (timer) return
@@ -67,7 +71,7 @@ function usePoll(fn: () => void, ms: number) {
         sub.remove()
         stop()
       }
-    }, [ms]),
+    }, [ms, enabled]),
   )
 }
 
@@ -155,18 +159,20 @@ export function LockScreen() {
   const pendingTimeoutRef = useRef(0)
   const failuresRef = useRef(0)
 
+  const applyState = (state: DoorState) => {
+    failuresRef.current = 0
+    setError(undefined)
+    setDoorState(state)
+    if (prevStateRef.current !== null && state !== prevStateRef.current) {
+      prevStateRef.current = null
+      clearTimeout(pendingTimeoutRef.current)
+      setIsPending(false)
+    }
+  }
+
   const fetchState = () => {
     getState()
-      .then(({ state }) => {
-        failuresRef.current = 0
-        setError(undefined)
-        setDoorState(state)
-        if (prevStateRef.current !== null && state !== prevStateRef.current) {
-          prevStateRef.current = null
-          clearTimeout(pendingTimeoutRef.current)
-          setIsPending(false)
-        }
-      })
+      .then(({ state }) => applyState(state))
       .catch((e) => {
         failuresRef.current += 1
         if (failuresRef.current >= OFFLINE_AFTER) setError(String(e.message ?? e))
@@ -179,8 +185,13 @@ export function LockScreen() {
       .catch(() => {})
   }
 
-  usePoll(fetchState, STATE_POLL_MS)
-  usePoll(fetchBattery, BATTERY_POLL_MS)
+  const socketConnected = useLockSocket(({ state, battery }) => {
+    applyState(state)
+    setBatteryPercent(battery)
+  })
+
+  usePoll(fetchState, STATE_POLL_MS, !socketConnected)
+  usePoll(fetchBattery, BATTERY_POLL_MS, !socketConnected)
 
   useEffect(() => () => clearTimeout(pendingTimeoutRef.current), [])
 

@@ -56,6 +56,8 @@ The router's DTIM interval also matters: the ESP can't usefully listen less ofte
 
 `BatteryPollMs` sets how often the fuel gauge is read and battery/current are published (5 minutes in the example).
 
+`ServoMoveMs` is how long each move is held before the new state is reported (700 ms in the example). It sets the floor on how fast the app sees a confirmation, so lower it until the bolt sometimes stops short, then add margin.
+
 `ServoPowerGpio` is for a MOSFET or load switch on the servo's supply. A hobby servo draws several mA idle even with no signal; gating it removes that between moves.
 
 ## Build and flash

@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import { useLockSocket } from "./useLockSocket";
 
 const LOCK_COLOR = "currentColor";
 
 // How long to keep the pulsing "pending" ring before giving up on seeing the
 // state flip we asked for.
 const PENDING_TIMEOUT_MS = 15000;
+// Fallback polling cadence, used only while the /ws socket is down.
+const STATE_POLL_MS = 1000;
+const BATTERY_POLL_MS = 5000;
 
 const BatteryGauge = ({ percent }) => {
   if (percent === null) return null;
@@ -42,21 +46,19 @@ export const Lock = () => {
   const prevStateRef = useRef(null);
   const pendingTimeoutRef = useRef(null);
 
+  const applyState = (newState) => {
+    setDoorState(newState);
+    if (prevStateRef.current !== null && newState !== prevStateRef.current) {
+      prevStateRef.current = null;
+      clearTimeout(pendingTimeoutRef.current);
+      setIsPending(false);
+    }
+  };
+
   const fetchState = () => {
     axios
       .get("/state")
-      .then((response) => {
-        const newState = response.data.state;
-        setDoorState(newState);
-        if (
-          prevStateRef.current !== null &&
-          newState !== prevStateRef.current
-        ) {
-          prevStateRef.current = null;
-          clearTimeout(pendingTimeoutRef.current);
-          setIsPending(false);
-        }
-      })
+      .then((response) => applyState(response.data.state))
       .catch(() => {});
   };
 
@@ -67,17 +69,25 @@ export const Lock = () => {
       .catch(() => {});
   };
 
+  const socketConnected = useLockSocket(({ state, battery }) => {
+    applyState(state);
+    setBatteryPercent(battery);
+  });
+
+  // Polling is only the fallback while the socket is down.
   useEffect(() => {
+    if (socketConnected) return;
     fetchState();
-    const interval = setInterval(fetchState, 1000);
+    const interval = setInterval(fetchState, STATE_POLL_MS);
     return () => clearInterval(interval);
-  }, []);
+  }, [socketConnected]);
 
   useEffect(() => {
+    if (socketConnected) return;
     fetchBattery();
-    const interval = setInterval(fetchBattery, 5000);
+    const interval = setInterval(fetchBattery, BATTERY_POLL_MS);
     return () => clearInterval(interval);
-  }, []);
+  }, [socketConnected]);
 
   useEffect(() => () => clearTimeout(pendingTimeoutRef.current), []);
 

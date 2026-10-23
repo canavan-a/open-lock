@@ -48,6 +48,15 @@ type Door struct {
 	mu      sync.RWMutex
 	state   State
 	battery int
+	subs    map[chan Snapshot]struct{}
+}
+
+// Snapshot is everything the UI shows. It is pushed to subscribers on every
+// firmware report, including repeats of an unchanged state, since those are
+// the firmware acknowledging a command.
+type Snapshot struct {
+	State   string `json:"state"`
+	Battery int    `json:"battery"`
 }
 
 // New connects to the broker and subscribes to the state and battery topics.
@@ -106,6 +115,7 @@ func (d *Door) handleState(payload []byte) {
 		return
 	}
 	d.log.Debug("lock state updated", "state", d.state)
+	d.broadcastLocked()
 }
 
 func (d *Door) handleBattery(payload []byte) {
@@ -115,7 +125,51 @@ func (d *Door) handleBattery(payload []byte) {
 	}
 	d.mu.Lock()
 	d.battery = pct
+	d.broadcastLocked()
 	d.mu.Unlock()
+}
+
+// Snapshot returns the current state and battery together.
+func (d *Door) Snapshot() Snapshot {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.snapshotLocked()
+}
+
+func (d *Door) snapshotLocked() Snapshot {
+	return Snapshot{State: d.state.String(), Battery: d.battery}
+}
+
+// Subscribe returns a channel that receives the current snapshot immediately
+// and then one per firmware report, and a func to unsubscribe. A subscriber
+// that falls behind only ever sees the latest snapshot, never a backlog.
+func (d *Door) Subscribe() (<-chan Snapshot, func()) {
+	ch := make(chan Snapshot, 1)
+	d.mu.Lock()
+	if d.subs == nil {
+		d.subs = make(map[chan Snapshot]struct{})
+	}
+	d.subs[ch] = struct{}{}
+	ch <- d.snapshotLocked()
+	d.mu.Unlock()
+
+	return ch, func() {
+		d.mu.Lock()
+		delete(d.subs, ch)
+		d.mu.Unlock()
+	}
+}
+
+// broadcastLocked must be called with d.mu held for writing.
+func (d *Door) broadcastLocked() {
+	s := d.snapshotLocked()
+	for ch := range d.subs {
+		select {
+		case <-ch:
+		default:
+		}
+		ch <- s
+	}
 }
 
 func (d *Door) requestState()   { d.client.Publish(d.cfg.TopicSignal, 1, false, "state") }
