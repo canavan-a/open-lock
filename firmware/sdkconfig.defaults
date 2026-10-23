@@ -1,0 +1,17 @@
+# Automatic light sleep: the CPU sleeps whenever every task is blocked, and the
+# Wi-Fi driver wakes it for the beacons it has to listen to.
+CONFIG_PM_ENABLE=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+CONFIG_PM_SLP_IRAM_OPT=y
+CONFIG_PM_RTOS_IDLE_OPT=y
+CONFIG_ESP_WIFI_SLP_IRAM_OPT=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_80=y
+
+# esp-mqtt's task wakes every poll timeout even when idle (1s by default).
+# Incoming messages still wake it immediately; this only spaces out the idle
+# wake-ups, and keepalive pings (every MqttKeepaliveSec / 2) piggyback on them.
+CONFIG_MQTT_USE_CUSTOM_CONFIG=y
+CONFIG_MQTT_POLL_READ_TIMEOUT_MS=5000
+
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
