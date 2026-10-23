@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { DEFAULT_LOCK_ANIMATION, type LockAnimationId } from '../lock/ids'
 import type { ThemeName } from '../theme'
 
 // The app has no window.location to inherit an origin from, so the connection
@@ -18,6 +19,9 @@ export interface LockConfig {
   autoUpdateCheck: boolean
   // Color palette (see src/theme.ts). Saved the moment it's picked.
   themeName: ThemeName
+  // Which lock animation the lock screen plays (see src/lock/registry.tsx).
+  // Saved the moment it's picked, like the theme.
+  lockAnimation: LockAnimationId
 }
 
 export const DEFAULT_CONFIG: LockConfig = {
@@ -26,6 +30,7 @@ export const DEFAULT_CONFIG: LockConfig = {
   cfAccessClientSecret: '',
   autoUpdateCheck: true,
   themeName: 'dark',
+  lockAnimation: DEFAULT_LOCK_ANIMATION,
 }
 
 const KEY = 'superlock.config'

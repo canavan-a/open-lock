@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { BATTERY_UNAVAILABLE, getBattery, getState } from '../api/client'
+import { BATTERY_UNAVAILABLE, closeLock, getBattery, getState, openLock } from '../api/client'
 import {
   compareVersions,
   DowngradeBlockedError,
@@ -37,6 +37,7 @@ import {
   useTheme,
   useThemedStyles,
 } from '../theme'
+import { AnimationPicker } from './AnimationPicker'
 
 export function SettingsScreen() {
   const isSetup = useRoute().name === 'Setup'
@@ -54,6 +55,8 @@ export function SettingsScreen() {
   const [busy, setBusy] = useState(false)
   const [checking, setChecking] = useState(false)
   const [showDowngrade, setShowDowngrade] = useState(false)
+  const [manualResult, setManualResult] = useState<string>()
+  const [manualBusy, setManualBusy] = useState(false)
 
   useEffect(() => {
     loadConfig().then(setCfg)
@@ -129,9 +132,14 @@ export function SettingsScreen() {
     }
   }
 
-  // Keeps the theme as it is now: it is saved on its own the moment it's
-  // picked, and `cfg` may hold a stale copy.
-  const persist = () => saveConfig({ ...cfg, themeName: getConfig().themeName })
+  // Keeps the theme and lock animation as they are now: each is saved on its
+  // own the moment it's picked, and `cfg` may hold a stale copy.
+  const persist = () =>
+    saveConfig({
+      ...cfg,
+      themeName: getConfig().themeName,
+      lockAnimation: getConfig().lockAnimation,
+    })
 
   const onSave = async () => {
     await persist()
@@ -143,6 +151,25 @@ export function SettingsScreen() {
   const onPickTheme = async (name: ThemeName) => {
     setCfg((c) => ({ ...c, themeName: name }))
     await saveConfig({ ...getConfig(), themeName: name })
+  }
+
+  // The escape hatch for when the lock screen and the door disagree: tapping
+  // the lock only ever asks for the opposite of what it shows.
+  const onManual = async (action: 'open' | 'close') => {
+    setManualBusy(true)
+    setManualResult(action === 'open' ? 'Sending unlock…' : 'Sending lock…')
+    try {
+      await (action === 'open' ? openLock() : closeLock())
+      // give the firmware time to move and report before reading it back
+      await new Promise<void>((r) => setTimeout(() => r(), 2500))
+      const { state } = await getState()
+      const shown = state === 'open' ? 'unlocked' : state === 'closed' ? 'locked' : 'unknown'
+      setManualResult(`Sent. The lock now reports ${shown}.`)
+    } catch (e) {
+      setManualResult(`Failed: ${String((e as Error).message ?? e)}`)
+    } finally {
+      setManualBusy(false)
+    }
   }
 
   // Tests the values in the form, not the saved ones.
@@ -243,6 +270,36 @@ export function SettingsScreen() {
         ))}
       </View>
       <Text style={styles.hint}>The app icon follows the theme once you leave the app.</Text>
+
+      <Text style={styles.section}>Lock animation</Text>
+      <AnimationPicker />
+
+      {!isSetup && (
+        <>
+          <Text style={styles.section}>Manual control</Text>
+          <Text style={styles.hint}>
+            If the lock screen ever disagrees with the door, send a specific command here. The lock
+            screen catches up as soon as the lock reports back.
+          </Text>
+          <View style={styles.manualRow}>
+            <TouchableOpacity
+              style={[styles.btnOutline, styles.manualBtn, manualBusy && styles.btnDisabled]}
+              disabled={manualBusy}
+              onPress={() => onManual('open')}
+            >
+              <Text style={styles.btnOutlineText}>Send unlock</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btnOutline, styles.manualBtn, manualBusy && styles.btnDisabled]}
+              disabled={manualBusy}
+              onPress={() => onManual('close')}
+            >
+              <Text style={styles.btnOutlineText}>Send lock</Text>
+            </TouchableOpacity>
+          </View>
+          {manualResult ? <Text style={styles.hint}>{manualResult}</Text> : null}
+        </>
+      )}
 
       <Text style={styles.section}>Updates</Text>
       <TouchableOpacity onPress={checkUpdates} disabled={checking}>
@@ -362,6 +419,8 @@ function makeStyles(theme: Theme) {
       alignItems: 'center',
     },
     btnOutlineText: { color: theme.text },
+    manualRow: { flexDirection: 'row', gap: 12 },
+    manualBtn: { flex: 1 },
     linkText: { color: theme.primary, fontSize: 12 },
     themeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     themeSwatch: {

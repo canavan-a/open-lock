@@ -1,18 +1,8 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  AppState,
-  Easing,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native'
+import { AppState, Pressable, StyleSheet, Text, Vibration, View } from 'react-native'
+import { useSharedValue, withSpring } from 'react-native-reanimated'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import Svg, { Path } from 'react-native-svg'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import {
   BATTERY_UNAVAILABLE,
@@ -23,27 +13,25 @@ import {
   openLock,
 } from '../api/client'
 import { useLockSocket } from '../api/socket'
+import { GUMMY, type LockPhase } from '../lock/motion'
+import { LockArt, useLockAnimation } from '../lock/registry'
 import { type Theme, useTheme, useThemedStyles } from '../theme'
 
-// A port of web-controller/ui/src/Lock.jsx: live state over the /ws socket
-// with the same polling fallback, the same pending ring while waiting for the
-// state we asked for, the same glyphs.
+// One big lock: tapping it asks for the opposite of what it shows. State
+// arrives live over the /ws socket, with polling as the fallback. If the
+// screen and the door ever disagree, Settings → Manual control sends a
+// specific command.
 
-// How long to keep the pulsing "pending" ring before giving up on seeing the
-// state flip we asked for.
-const PENDING_TIMEOUT_MS = 15000
+// How long to wait for the firmware to report the state we asked for before
+// calling it failed. A healthy round trip is about a second.
+const PENDING_TIMEOUT_MS = 8000
 // Fallback polling cadence, used only while the /ws socket is down.
 const STATE_POLL_MS = 1000
 const BATTERY_POLL_MS = 5000
 // Consecutive failed state polls before the screen says it's offline.
 const OFFLINE_AFTER = 3
 
-const LOCK_SIZE = 200
-
-const OPEN_PATH =
-  'M11.5 2C10.6716 2 10 2.67157 10 3.5V6H13V16H1V6H8V3.5C8 1.567 9.567 0 11.5 0C13.433 0 15 1.567 15 3.5V4H13V3.5C13 2.67157 12.3284 2 11.5 2ZM9 10H5V12H9V10Z'
-const CLOSED_PATH =
-  'M4 6V4C4 1.79086 5.79086 0 8 0C10.2091 0 12 1.79086 12 4V6H14V16H2V6H4ZM6 4C6 2.89543 6.89543 2 8 2C9.10457 2 10 2.89543 10 4V6H6V4ZM7 13V9H9V13H7Z'
+const LOCK_SIZE = 300
 
 // Runs `fn` now and every `ms` while `enabled`, the screen is focused and the
 // app is in the foreground — nothing polls from the background.
@@ -75,98 +63,79 @@ function usePoll(fn: () => void, ms: number, enabled: boolean) {
   )
 }
 
-function LockGlyph({ path, color, dim }: { path: string; color: string; dim: boolean }) {
-  return (
-    <Svg
-      width={LOCK_SIZE}
-      height={LOCK_SIZE}
-      viewBox="0 0 16 16"
-      style={{ opacity: dim ? 0.3 : 1 }}
-    >
-      <Path fillRule="evenodd" clipRule="evenodd" d={path} fill={color} />
-    </Svg>
-  )
+function batteryIcon(percent: number): string {
+  if (percent === BATTERY_UNAVAILABLE) return 'battery-unknown'
+  if (percent >= 95) return 'battery'
+  if (percent < 5) return 'battery-outline'
+  return `battery-${Math.max(10, Math.round(percent / 10) * 10)}`
 }
 
-// The web's animate-ping-fast: a disc that grows to 2x and fades, every 0.6s.
-function PendingRing({ color }: { color: string }) {
-  const t = useRef(new Animated.Value(0)).current
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(t, {
-        toValue: 1,
-        duration: 600,
-        easing: Easing.bezier(0, 0, 0.2, 1),
-        useNativeDriver: true,
-      }),
-    )
-    loop.start()
-    return () => loop.stop()
-  }, [t])
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        width: LOCK_SIZE,
-        height: LOCK_SIZE,
-        borderRadius: LOCK_SIZE / 2,
-        backgroundColor: color,
-        opacity: t.interpolate({ inputRange: [0, 0.75, 1], outputRange: [0.2, 0, 0] }),
-        transform: [{ scale: t.interpolate({ inputRange: [0, 0.75, 1], outputRange: [1, 2, 2] }) }],
-      }}
-    />
-  )
-}
-
-function BatteryGauge({ percent }: { percent: number | null }) {
+function Battery({ percent }: { percent: number | null }) {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
-  if (percent === null) return null
+  if (percent === null) return <View />
 
   const isError = percent === BATTERY_UNAVAILABLE
-  const clamped = isError ? 0 : Math.min(100, Math.max(0, percent))
-  const color = isError
-    ? theme.textMuted
-    : clamped <= 20
-      ? theme.danger
-      : clamped <= 50
-        ? '#facc15'
-        : theme.success
-  const label = isError ? '?' : `${clamped}%`
-
+  const clamped = Math.min(100, Math.max(0, percent))
+  const color = isError || clamped > 20 ? theme.textMuted : theme.danger
   return (
-    <View style={styles.battery}>
-      <View style={styles.batteryShell}>
-        <View style={[styles.batteryFill, { width: `${clamped}%`, backgroundColor: color }]} />
-      </View>
-      <Text style={styles.batteryLabel}>{label}</Text>
+    <View style={styles.battery} accessibilityLabel={isError ? 'Battery unknown' : `Battery ${clamped}%`}>
+      <MaterialCommunityIcons
+        name={batteryIcon(percent)}
+        size={22}
+        color={color}
+        style={styles.batteryIcon}
+      />
+      <Text style={[styles.batteryLabel, { color }]}>{isError ? '?' : `${clamped}%`}</Text>
     </View>
   )
+}
+
+function statusText(state: DoorState, phase: LockPhase, action: 'open' | 'close' | null) {
+  if (phase === 'pending') return action === 'open' ? 'Unlocking…' : 'Locking…'
+  if (phase === 'failed') return "Didn't confirm"
+  if (state === 'open') return 'Unlocked'
+  if (state === 'closed') return 'Locked'
+  return 'Connecting…'
+}
+
+function hintText(state: DoorState, phase: LockPhase) {
+  if (phase === 'pending') return ' '
+  if (phase === 'failed') return 'Tap to try again, or use Settings → Manual control'
+  if (state === 'open') return 'Tap to lock'
+  if (state === 'closed') return 'Tap to unlock'
+  return ' '
 }
 
 export function LockScreen() {
   const theme = useTheme()
   const styles = useThemedStyles(makeStyles)
   const navigation = useNavigation<any>()
+  const animation = useLockAnimation()
 
   const [doorState, setDoorState] = useState<DoorState>('unknown')
-  const [isToggling, setIsToggling] = useState(false)
-  const [isPending, setIsPending] = useState(false)
+  const [phase, setPhase] = useState<LockPhase>('idle')
+  const [action, setAction] = useState<'open' | 'close' | null>(null)
   const [batteryPercent, setBatteryPercent] = useState<number | null>(null)
   const [error, setError] = useState<string>()
   const prevStateRef = useRef<DoorState | null>(null)
   const pendingTimeoutRef = useRef(0)
   const failuresRef = useRef(0)
+  const doorStateRef = useRef<DoorState>('unknown')
+  const press = useSharedValue(0)
 
   const applyState = (state: DoorState) => {
     failuresRef.current = 0
     setError(undefined)
+    // the door moving on its own (button, another phone) clears a stale failure
+    if (state !== doorStateRef.current) setPhase((p) => (p === 'failed' ? 'idle' : p))
+    doorStateRef.current = state
     setDoorState(state)
     if (prevStateRef.current !== null && state !== prevStateRef.current) {
       prevStateRef.current = null
       clearTimeout(pendingTimeoutRef.current)
-      setIsPending(false)
+      setPhase('idle')
+      Vibration.vibrate(30)
     }
   }
 
@@ -195,79 +164,67 @@ export function LockScreen() {
 
   useEffect(() => () => clearTimeout(pendingTimeoutRef.current), [])
 
-  const doCommand = (action: 'open' | 'close') => {
-    if (isToggling) return
-    setIsToggling(true)
-    ;(action === 'open' ? openLock() : closeLock())
-      .then(() => {
-        setIsToggling(false)
-        prevStateRef.current = doorState
-        setIsPending(true)
-        clearTimeout(pendingTimeoutRef.current)
-        pendingTimeoutRef.current = setTimeout(() => {
-          prevStateRef.current = null
-          setIsPending(false)
-        }, PENDING_TIMEOUT_MS)
-      })
-      .catch((e) => {
-        Alert.alert('Could not send command', String(e.message ?? e))
-        setIsToggling(false)
-      })
+  const fail = (message?: string) => {
+    prevStateRef.current = null
+    clearTimeout(pendingTimeoutRef.current)
+    setPhase('failed')
+    if (message) setError(message)
+    Vibration.vibrate([0, 40, 70, 40])
   }
 
-  const glyph =
-    isToggling || doorState === 'unknown' ? (
-      <View style={styles.glyphBox}>
-        <ActivityIndicator size="large" color={theme.text} />
-      </View>
-    ) : (
-      <LockGlyph
-        path={doorState === 'open' ? OPEN_PATH : CLOSED_PATH}
-        color={theme.text}
-        dim={isPending}
-      />
+  // Asks for the opposite of what's on screen. If the screen is wrong, the
+  // firmware just re-reports the same state, nothing flips, and this times out
+  // as failed; Settings → Manual control is the way out.
+  const onTap = () => {
+    if (phase === 'pending' || doorState === 'unknown') return
+    const next = doorState === 'open' ? 'close' : 'open'
+    setAction(next)
+    setPhase('pending')
+    prevStateRef.current = doorState
+    clearTimeout(pendingTimeoutRef.current)
+    pendingTimeoutRef.current = setTimeout(() => fail(), PENDING_TIMEOUT_MS)
+    ;(next === 'open' ? openLock() : closeLock()).catch((e) =>
+      fail(`Could not send command: ${String(e.message ?? e)}`),
     )
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
-      <Pressable
-        style={styles.gear}
-        hitSlop={12}
-        onPress={() => navigation.navigate('Settings')}
-        accessibilityLabel="Settings"
-      >
-        <MaterialCommunityIcons name="cog" size={26} color={theme.textMuted} />
-      </Pressable>
+      <View style={styles.topBar}>
+        <Battery percent={batteryPercent} />
+        <Pressable
+          hitSlop={12}
+          onPress={() => navigation.navigate('Settings')}
+          accessibilityLabel="Settings"
+        >
+          <MaterialCommunityIcons name="cog" size={26} color={theme.textMuted} />
+        </Pressable>
+      </View>
 
       <View style={styles.center}>
-        <View style={styles.glyphWrap}>
-          {isPending && <PendingRing color={theme.text} />}
-          {glyph}
-        </View>
+        <Pressable
+          onPress={onTap}
+          onPressIn={() => (press.value = withSpring(1, GUMMY))}
+          onPressOut={() => (press.value = withSpring(0, GUMMY))}
+          disabled={doorState === 'unknown'}
+          accessibilityRole="button"
+          accessibilityLabel={doorState === 'open' ? 'Lock' : 'Unlock'}
+        >
+          <LockArt
+            animation={animation}
+            size={LOCK_SIZE}
+            state={doorState}
+            phase={phase}
+            press={press}
+            colors={{ ink: theme.text, accent: theme.primary, bg: theme.bg }}
+          />
+        </Pressable>
 
-        <BatteryGauge percent={batteryPercent} />
-
-        <View style={styles.buttons}>
-          <Pressable
-            onPress={() => doCommand('open')}
-            style={({ pressed }) => [
-              styles.btn,
-              { opacity: doorState === 'closed' ? 1 : 0.3 },
-              pressed && styles.btnPressed,
-            ]}
-          >
-            <Text style={styles.btnText}>Unlock</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => doCommand('close')}
-            style={({ pressed }) => [
-              styles.btn,
-              { opacity: doorState === 'open' ? 1 : 0.3 },
-              pressed && styles.btnPressed,
-            ]}
-          >
-            <Text style={styles.btnText}>Lock</Text>
-          </Pressable>
+        <View style={styles.status}>
+          <Text style={[styles.statusText, phase === 'failed' && { color: theme.danger }]}>
+            {statusText(doorState, phase, action)}
+          </Text>
+          <Text style={styles.hint}>{hintText(doorState, phase)}</Text>
         </View>
 
         {error ? <Text style={styles.error}>Offline: {error}</Text> : null}
@@ -279,45 +236,29 @@ export function LockScreen() {
 function makeStyles(theme: Theme) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.bg },
-    gear: { position: 'absolute', top: 12, right: 16, zIndex: 1, padding: 4 },
+    topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingTop: 12,
+    },
+    battery: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    // the battery glyphs are drawn vertical; lay it on its side
+    batteryIcon: { transform: [{ rotate: '90deg' }] },
+    batteryLabel: { fontSize: 13, fontVariant: ['tabular-nums'] },
     center: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 16,
-      gap: 24,
+      gap: 8,
+      // optical centre: sit the lock a little above the middle
+      paddingBottom: 48,
     },
-    glyphWrap: { alignItems: 'center', justifyContent: 'center' },
-    glyphBox: {
-      width: LOCK_SIZE,
-      height: LOCK_SIZE,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    battery: { flexDirection: 'row', alignItems: 'center', gap: 8, opacity: 0.6 },
-    batteryShell: {
-      width: 80,
-      height: 12,
-      borderRadius: 2,
-      borderWidth: 1,
-      borderColor: theme.text,
-      overflow: 'hidden',
-    },
-    batteryFill: { position: 'absolute', top: 0, bottom: 0, left: 0 },
-    batteryLabel: { color: theme.text, fontSize: 12, fontVariant: ['tabular-nums'] },
-    buttons: { flexDirection: 'row', gap: 16, width: '100%', maxWidth: 448 },
-    btn: {
-      flex: 1,
-      height: 64,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: theme.surfaceAlt,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    btnPressed: { backgroundColor: theme.border },
-    btnText: { color: theme.text, fontSize: 18, fontWeight: '600' },
-    error: { color: theme.danger, fontSize: 12, textAlign: 'center' },
+    status: { alignItems: 'center', gap: 4 },
+    statusText: { color: theme.text, fontSize: 20, fontWeight: '600' },
+    hint: { color: theme.textMuted, fontSize: 13 },
+    error: { color: theme.danger, fontSize: 12, textAlign: 'center', marginTop: 12 },
   })
 }

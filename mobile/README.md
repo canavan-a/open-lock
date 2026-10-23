@@ -1,20 +1,37 @@
 # Super Lock (Android)
 
 Super Lock is the sideloaded (direct-APK, no Play Store) Android client for the
-open-lock web-controller. It is the web UI (`web-controller/ui`) as a native
-app: the lock glyph, battery gauge and Unlock / Lock buttons, with the same
-polling and "pending" ring. A gear in the top-right corner opens Settings.
+open-lock web-controller. The screen is one big animated padlock: tap it to ask
+for the opposite of what it shows. The battery sits in the top-left corner and
+a gear in the top-right opens Settings.
 
-It talks to the same HTTP API the web UI uses (`/state`, `/battery`, `/open`,
-`/close` — see [`web-controller/readme.md`](../web-controller/readme.md)); no
-server changes are needed.
+It talks to the web-controller's HTTP API (`/state`, `/battery`, `/open`,
+`/close`) and its `/ws` socket — see
+[`web-controller/readme.md`](../web-controller/readme.md).
+
+## Lock screen
+
+- **Tap** sends unlock if the lock shows locked, lock if it shows unlocked.
+  The lock animates while the command is pending and lands when the firmware
+  reports the new state (with a short vibration).
+- If nothing changes within 8 s the screen shows **Didn't confirm** with a
+  shake. That also happens when the screen is out of sync with the door (the
+  firmware just re-reports the state it's already in). **Settings → Manual
+  control** sends a specific unlock or lock to recover.
+- **Settings → Lock animation** picks one of eight animations, each with a
+  live preview: Jell-O, Liquid, Gummy, Taffy, Goo, Bubble Pop, Sprinkles,
+  Splash. Saved the moment it's picked.
 
 ## Stack
 
 - React Native 0.75 (bare CLI), Hermes, old architecture — the same base as
   Super Eye in horus-33.
-- `react-native-svg` for the lock glyphs, `@react-navigation` native stack
-  (Lock → Settings).
+- `@shopify/react-native-skia` 1.x draws the padlock and
+  `react-native-reanimated` 3.x drives it on the UI thread (both are the last
+  majors that support RN 0.75 on the old architecture). The animations live in
+  `src/lock/`: `geometry.ts` is the padlock, `motion.ts` the shared springs and
+  state, `animations/` one file each, `registry.tsx` the list Settings shows.
+- `@react-navigation` native stack (Lock → Settings).
 
 ## Connecting
 
@@ -30,8 +47,9 @@ Settings has two shapes:
   blank.
 
 "Test connection" uses the values in the form before they are saved. The lock
-screen polls `/state` every second and `/battery` every 5 s, only while it is
-on screen and the app is in the foreground.
+screen gets live state over `/ws` while it is on screen and the app is in the
+foreground, reconnecting with backoff; while the socket is down it polls
+`/state` every second and `/battery` every 5 s.
 
 ## Themes
 
