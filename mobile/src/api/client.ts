@@ -44,12 +44,15 @@ async function request<T>(path: string, init?: RequestInit, c: LockConfig = getC
     body = text ? JSON.parse(text) : undefined
   } catch {
     // Cloudflare Access answers a missing or rejected service token with its
-    // HTML login page (a 200 after the redirect) or a 403, never JSON.
+    // HTML login page (a 200 after the redirect) or a 403, never JSON; other
+    // auth proxies tend to answer with a 401/403 page of their own.
     throw new ApiError(
       res.status,
-      res.status === 403 || /cloudflare/i.test(text)
-        ? 'blocked by Cloudflare Access — check the service token'
-        : `unexpected response (${res.status})`,
+      /cloudflare/i.test(text)
+        ? 'blocked by Cloudflare Access — check the auth headers'
+        : res.status === 401 || res.status === 403
+          ? `rejected (${res.status}) — check the auth headers`
+          : `unexpected response (${res.status})`,
     )
   }
   if (!res.ok) {

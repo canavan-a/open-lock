@@ -2,6 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { DEFAULT_LOCK_ANIMATION, isLockAnimationId, type LockAnimationId } from '../lock/ids'
 import type { ThemeName } from '../theme'
 
+// A header sent on every request (and the /ws upgrade), e.g. a Cloudflare
+// Access service token or a bearer token for some other proxy.
+export interface AuthHeader {
+  name: string
+  value: string
+}
+
 // The app has no window.location to inherit an origin from, so the connection
 // target is stored explicitly. The usual deployment is a cloudflared tunnel
 // hostname pointing at the web-controller, behind Cloudflare Access; the lock
@@ -10,10 +17,8 @@ export interface LockConfig {
   // Tunnel hostname, e.g. 'lock.example.com' (served over https). A full
   // origin such as 'http://192.168.1.20:8080' is also accepted for LAN use.
   host: string
-  // Cloudflare Access service token. Sent as CF-Access-Client-Id /
-  // CF-Access-Client-Secret on every request.
-  cfAccessClientId: string
-  cfAccessClientSecret: string
+  // Any number of auth headers. Rows with a blank name are ignored.
+  headers: AuthHeader[]
   // Whether to check GitHub Releases for a newer APK when the app comes to the
   // foreground. The manual "Check for updates" in Settings always works.
   autoUpdateCheck: boolean
@@ -26,8 +31,7 @@ export interface LockConfig {
 
 export const DEFAULT_CONFIG: LockConfig = {
   host: '',
-  cfAccessClientId: '',
-  cfAccessClientSecret: '',
+  headers: [],
   autoUpdateCheck: true,
   themeName: 'dark',
   lockAnimation: DEFAULT_LOCK_ANIMATION,
@@ -64,14 +68,34 @@ export async function loadConfig(): Promise<LockConfig> {
   try {
     const raw = await AsyncStorage.getItem(KEY)
     if (raw) {
-      cache = { ...DEFAULT_CONFIG, ...(JSON.parse(raw) as Partial<LockConfig>) }
+      const { cfAccessClientId, cfAccessClientSecret, ...saved } = JSON.parse(raw) as Partial<LockConfig> &
+        LegacyConfig
+      const migrated = !Array.isArray(saved.headers)
+      cache = { ...DEFAULT_CONFIG, ...saved }
+      if (migrated) cache.headers = legacyHeaders({ cfAccessClientId, cfAccessClientSecret })
       if (!isLockAnimationId(cache.lockAnimation)) cache.lockAnimation = DEFAULT_LOCK_ANIMATION
       notify()
+      if (migrated) await AsyncStorage.setItem(KEY, JSON.stringify(cache))
     }
   } catch {
     // Corrupt or unavailable storage — fall back to defaults.
   }
   return cache
+}
+
+// Before custom headers, the Cloudflare Access service token had fields of
+// its own. A config saved then carries them over as two ordinary headers.
+interface LegacyConfig {
+  cfAccessClientId?: string
+  cfAccessClientSecret?: string
+}
+
+function legacyHeaders(c: LegacyConfig): AuthHeader[] {
+  if (!c.cfAccessClientId || !c.cfAccessClientSecret) return []
+  return [
+    { name: 'CF-Access-Client-Id', value: c.cfAccessClientId },
+    { name: 'CF-Access-Client-Secret', value: c.cfAccessClientSecret },
+  ]
 }
 
 export async function saveConfig(next: LockConfig): Promise<void> {
@@ -88,11 +112,12 @@ export function baseUrl(c: LockConfig): string {
   return `https://${h}`
 }
 
-// Headers for Cloudflare Access, or {} when no token is configured.
+// The configured auth headers, or {} when there are none.
 export function accessHeaders(c: LockConfig): Record<string, string> {
-  if (!c.cfAccessClientId || !c.cfAccessClientSecret) return {}
-  return {
-    'CF-Access-Client-Id': c.cfAccessClientId,
-    'CF-Access-Client-Secret': c.cfAccessClientSecret,
+  const out: Record<string, string> = {}
+  for (const h of c.headers) {
+    const name = h.name.trim()
+    if (name) out[name] = h.value.trim()
   }
+  return out
 }

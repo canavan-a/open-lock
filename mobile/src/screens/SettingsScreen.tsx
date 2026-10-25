@@ -29,6 +29,7 @@ import {
 } from '../lib/config'
 import { useTheme, useThemedStyles } from '../theme'
 import { AnimationPicker } from './AnimationPicker'
+import { HeaderList } from './HeaderList'
 import { Field, makeStyles, ManualControl, ThemePicker } from './settingsParts'
 
 export function SettingsScreen() {
@@ -117,7 +118,7 @@ export function SettingsScreen() {
 
   const set = <K extends keyof LockConfig>(k: K, v: LockConfig[K]) => {
     setCfg((c) => ({ ...c, [k]: v }))
-    if (k === 'host' || k === 'cfAccessClientId' || k === 'cfAccessClientSecret') {
+    if (k === 'host' || k === 'headers') {
       setTestOk(false)
     }
   }
@@ -174,29 +175,13 @@ export function SettingsScreen() {
         full origin instead, e.g. http://192.168.1.20:8080.
       </Text>
 
-      <Text style={styles.section}>Cloudflare Access</Text>
-      <Field label="CF-Access-Client-Id">
-        <TextInput
-          style={styles.input}
-          autoCapitalize="none"
-          autoCorrect={false}
-          value={cfg.cfAccessClientId}
-          onChangeText={(t) => set('cfAccessClientId', t.trim())}
-        />
-      </Field>
-      <Field label="CF-Access-Client-Secret">
-        <TextInput
-          style={styles.input}
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-          value={cfg.cfAccessClientSecret}
-          onChangeText={(t) => set('cfAccessClientSecret', t.trim())}
-        />
-      </Field>
+      <Text style={styles.section}>Auth headers</Text>
+      <HeaderList headers={cfg.headers} onChange={(h) => set('headers', h)} />
       <Text style={styles.hint}>
-        A service token from Zero Trust → Access → Service Auth. The application's policy needs a
-        "Service Auth" rule that includes this token. Leave blank on a LAN.
+        Sent on every request. For Cloudflare Access, add CF-Access-Client-Id and
+        CF-Access-Client-Secret from a service token (Zero Trust → Access → Service Auth); the
+        application's policy needs a "Service Auth" rule that includes it. For a bearer token, add
+        Authorization with the value "Bearer …". Leave empty on a LAN.
       </Text>
 
       {!isSetup && (

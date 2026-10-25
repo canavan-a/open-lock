@@ -41,11 +41,15 @@ Settings has two shapes:
 - **Remote** — a `cloudflared` tunnel hostname pointing at the web-controller
   (e.g. `lock.example.com`, always `https`), behind Cloudflare Access. Create a
   service token (Zero Trust → Access → Service Auth), add a **Service Auth**
-  rule including it to the Access application's policy, and paste the
-  **CF-Access-Client-Id / Secret** into Settings. They ride on every request.
+  rule including it to the Access application's policy, and add
+  **CF-Access-Client-Id** and **CF-Access-Client-Secret** under Auth headers.
   A missing or rejected token shows up as "blocked by Cloudflare Access".
-- **LAN** — a full origin such as `http://192.168.1.20:8080`; leave the token
-  blank.
+  Any other proxy works the same way: Auth headers takes any number of
+  name/value pairs (e.g. `Authorization: Bearer …`), sent on every request and
+  on the `/ws` upgrade. Configs saved before Auth headers existed carry their
+  Cloudflare token over as those two headers.
+- **LAN** — a full origin such as `http://192.168.1.20:8080`; leave Auth
+  headers empty.
 
 "Test connection" uses the values in the form before they are saved. The lock
 screen gets live state over `/ws` while it is on screen and the app is in the
