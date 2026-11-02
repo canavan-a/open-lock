@@ -55,8 +55,10 @@ self.addEventListener('message', (event) => {
   if (event.data === 'skip-waiting') self.skipWaiting()
 })
 
-// The web-controller's own routes, when the app shares its origin.
-const PASS = /^\/(state|battery|open|close|healthz|ws)$/
+// The web-controller's own routes, when the app shares its origin, and Super
+// Matrix's sign-in pages in front of it: answering those with the app shell
+// would make signing in impossible.
+const PASS = /^\/((state|battery|open|close|healthz|ws)$|_supermatrix\/)/
 
 async function fromCache(key) {
   try {

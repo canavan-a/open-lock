@@ -121,3 +121,8 @@ export function accessHeaders(c: LockConfig): Record<string, string> {
   }
   return out
 }
+
+// The app sends its own auth headers; there is no sign-in page to go to.
+export function startSignIn(_auth: string): boolean {
+  return false
+}

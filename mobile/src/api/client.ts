@@ -1,4 +1,4 @@
-import { accessHeaders, baseUrl, getConfig, type LockConfig } from '../lib/config'
+import { accessHeaders, baseUrl, getConfig, startSignIn, type LockConfig } from '../lib/config'
 
 // The web-controller's HTTP API (see web-controller/readme.md).
 
@@ -36,6 +36,10 @@ async function request<T>(path: string, init?: RequestInit, c: LockConfig = getC
     throw new ApiError(0, ctrl.signal.aborted ? 'timed out' : String(e))
   } finally {
     clearTimeout(timer)
+  }
+
+  if (res.status === 401 && startSignIn(res.headers.get('X-Supermatrix-Auth') ?? '')) {
+    throw new ApiError(401, 'signing in…')
   }
 
   const text = await res.text()

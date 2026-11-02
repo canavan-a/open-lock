@@ -71,3 +71,18 @@ export function baseUrl(_c?: LockConfig): string {
 export function accessHeaders(_c?: LockConfig): Record<string, string> {
   return {}
 }
+
+// Super Matrix's edge answers an API call without a session with a 401 and
+// X-Supermatrix-Auth "required" or "expired". The service worker serves the
+// app from cache, so the edge never gets to redirect the page load itself:
+// go to its sign-in page here, and come back to this page after. Only on the
+// app's own origin, where the session cookie lives. Returns whether it went.
+export function startSignIn(auth: string): boolean {
+  if (auth !== 'required' && auth !== 'expired') return false
+  if (__API_ORIGIN__ && __API_ORIGIN__ !== window.location.origin) return false
+  const next = window.location.pathname + window.location.search
+  window.location.assign(
+    `/_supermatrix/login?next=${encodeURIComponent(next)}${auth === 'expired' ? '&expired=1' : ''}`,
+  )
+  return true
+}
